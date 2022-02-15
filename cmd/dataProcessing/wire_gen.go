@@ -7,13 +7,13 @@
 package main
 
 import (
+	"gitee.com/moyusir/data-processing/internal/biz"
+	"gitee.com/moyusir/data-processing/internal/conf"
+	"gitee.com/moyusir/data-processing/internal/data"
+	"gitee.com/moyusir/data-processing/internal/server"
+	"gitee.com/moyusir/data-processing/internal/service"
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/log"
-	"warningDetection/internal/biz"
-	"warningDetection/internal/conf"
-	"warningDetection/internal/data"
-	"warningDetection/internal/server"
-	"warningDetection/internal/service"
 )
 
 // Injectors from wire.go:

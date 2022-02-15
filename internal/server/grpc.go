@@ -1,12 +1,12 @@
 package server
 
 import (
+	v1 "gitee.com/moyusir/data-processing/api/helloworld/v1"
+	"gitee.com/moyusir/data-processing/internal/conf"
+	"gitee.com/moyusir/data-processing/internal/service"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
-	v1 "warningDetection/api/helloworld/v1"
-	"warningDetection/internal/conf"
-	"warningDetection/internal/service"
 )
 
 // NewGRPCServer new a gRPC server.

@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package api.dataProcessing.v1;
+
+option go_package = "gitee.com/moyusir/data-processing/api/dataProcessing/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.dataProcessing.v1";
+
+import "google/protobuf/timestamp.proto";
+import "util/api/util/v1/general.proto";
+
+// 预警检测服务，主要包括设备信息查询与推送相关的服务
+service WarningDetect {
+    // 分页查询指定类别设备的状态信息
+    rpc BatchGetDeviceState(BatchGetDeviceStateRequest)returns (BatchGetDeviceStateReply);
+    // 查询指定设备注册的预警规则
+    rpc GetDeviceStateRegisterInfo(GetDeviceStateRegisterInfoRequest)returns (api.util.v1.DeviceStateRegisterInfo);
+}
+
+// 设备状态信息分页查询请求
+message BatchGetDeviceStateRequest{
+    // 用户id
+    int64 id=1;
+    // 设备类别号
+    int64 device_class_id=2;
+    // 时间范围 开始时间
+    google.protobuf.Timestamp start=3;
+    // 结束时间
+    google.protobuf.Timestamp end=4;
+    // 分页查询
+    int64 offset=5;
+    int64 count=6;
+}
+// 设备状态信息分页查询响应
+message BatchGetDeviceStateReply{
+    message DeviceStateInfo{
+
+    }
+    repeated DeviceStateInfo device_state_infos = 1;
+}
+// 设备状态注册信息查询请求
+message GetDeviceStateRegisterInfoRequest{
+    // 所属用户id
+    string id=1;
+    // 设备类别号
+    int64 device_class_id=2;
+    // 设备id
+    int64 device_id=3;
+}
