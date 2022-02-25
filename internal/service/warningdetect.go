@@ -18,6 +18,6 @@ func NewWarningDetectService() *WarningDetectService {
 func (s *WarningDetectService) BatchGetDeviceState(ctx context.Context, req *pb.BatchGetDeviceStateRequest) (*pb.BatchGetDeviceStateReply, error) {
 	return &pb.BatchGetDeviceStateReply{}, nil
 }
-func (s *WarningDetectService) GetDeviceStateRegisterInfo(ctx context.Context, req *pb.GetDeviceStateRegisterInfoRequest) (*pb.api.util.v1.DeviceStateRegisterInfo, error) {
-	return &pb.api.util.v1.DeviceStateRegisterInfo{}, nil
+func (s *WarningDetectService) GetDeviceStateRegisterInfo(ctx context.Context, req *pb.GetDeviceStateRegisterInfoRequest) (*util.DeviceStateRegisterInfo, error) {
+	return &util.DeviceStateRegisterInfo{}, nil
 }

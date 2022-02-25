@@ -1,7 +1,7 @@
 package server
 
 import (
-	v1 "gitee.com/moyusir/data-processing/api/helloworld/v1"
+	v1 "gitee.com/moyusir/data-processing/api/dataProcessing/v1"
 	"gitee.com/moyusir/data-processing/internal/conf"
 	"gitee.com/moyusir/data-processing/internal/service"
 	"github.com/go-kratos/kratos/v2/log"
@@ -10,7 +10,7 @@ import (
 )
 
 // NewGRPCServer new a gRPC server.
-func NewGRPCServer(c *conf.Server, greeter *service.GreeterService, logger log.Logger) *grpc.Server {
+func NewGRPCServer(c *conf.Server, cs *service.ConfigService, ws *service.WarningDetectService, logger log.Logger) *grpc.Server {
 	var opts = []grpc.ServerOption{
 		grpc.Middleware(
 			recovery.Recovery(),

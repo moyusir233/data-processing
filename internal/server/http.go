@@ -1,7 +1,7 @@
 package server
 
 import (
-	v1 "gitee.com/moyusir/data-processing/api/helloworld/v1"
+	v1 "gitee.com/moyusir/data-processing/api/dataProcessing/v1"
 	"gitee.com/moyusir/data-processing/internal/conf"
 	"gitee.com/moyusir/data-processing/internal/service"
 	"github.com/go-kratos/kratos/v2/log"
@@ -10,7 +10,7 @@ import (
 )
 
 // NewHTTPServer new a HTTP server.
-func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, logger log.Logger) *http.Server {
+func NewHTTPServer(c *conf.Server, cs *service.ConfigService, ws *service.WarningDetectService, logger log.Logger) *http.Server {
 	var opts = []http.ServerOption{
 		http.Middleware(
 			recovery.Recovery(),
