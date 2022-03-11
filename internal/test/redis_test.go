@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"gitee.com/moyusir/data-processing/internal/biz"
-	"gitee.com/moyusir/data-processing/internal/conf"
 	"gitee.com/moyusir/data-processing/internal/data"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-redis/redis/v8"
@@ -15,8 +14,7 @@ import (
 )
 
 func TestData_RedisRepo(t *testing.T) {
-	// 导入配置
-	bootstrap, err := conf.LoadConfig("../../configs/config.yaml")
+	bootstrap, err := generalInit()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +223,27 @@ func TestData_RedisRepo(t *testing.T) {
 			t.Error(err)
 			return
 		}
-		t.Logf("%v", field)
+
+		for i, f := range field {
+			if f.Key != testCases[i].key {
+				t.Errorf(
+					"The result of the query key does not match the expectation:%s %s",
+					f.Key, testCases[i].key,
+				)
+			}
+			if f.Value != testCases[i].value {
+				t.Errorf(
+					"The result of the query value does not match the expectation:%f %f",
+					f.Value, testCases[i].value,
+				)
+			}
+			if f.Timestamp != testCases[i].time.Unix() {
+				t.Errorf(
+					"The result of the query timestamp does not match the expectation:%d %d",
+					f.Timestamp, testCases[i].time.Unix(),
+				)
+			}
+		}
 	})
 
 	// 警告消息相关的api即将数据存储在ZSet中并查询出来，因此不再额外编写测试

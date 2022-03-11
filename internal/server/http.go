@@ -1,7 +1,6 @@
 package server
 
 import (
-	v1 "gitee.com/moyusir/data-processing/api/dataProcessing/v1"
 	"gitee.com/moyusir/data-processing/internal/conf"
 	"gitee.com/moyusir/data-processing/internal/service"
 	"github.com/go-kratos/kratos/v2/log"
@@ -26,6 +25,6 @@ func NewHTTPServer(c *conf.Server, cs *service.ConfigService, ws *service.Warnin
 		opts = append(opts, http.Timeout(c.Http.Timeout.AsDuration()))
 	}
 	srv := http.NewServer(opts...)
-	v1.RegisterGreeterHTTPServer(srv, greeter)
+	//v1.RegisterGreeterHTTPServer(srv, greeter)
 	return srv
 }
