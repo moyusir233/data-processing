@@ -6,6 +6,145 @@ info:
     title: WarningDetect
     description: 预警检测服务，主要包括设备信息查询与推送相关的服务
     version: 0.0.1
-paths: {}
+paths:
+    /register-info/states/{device_class_id}:
+        get:
+            summary: 查询指定设备注册的预警规则
+            operationId: WarningDetect_GetDeviceStateRegisterInfo
+            parameters:
+                - name: device_class_id
+                  in: query
+                  description: 设备类别号
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeviceStateRegisterInfo'
+    /states/{device_class_id}/{page}/{count}:
+        get:
+            summary: 分页查询指定类别设备的状态信息
+            operationId: WarningDetect_BatchGetDeviceState
+            parameters:
+                - name: device_class_id
+                  in: query
+                  description: 设备类别号
+                  schema:
+                    type: string
+                - name: start
+                  in: query
+                  description: 时间范围 开始时间
+                  schema:
+                    type: string
+                - name: end
+                  in: query
+                  description: 结束时间
+                  schema:
+                    type: string
+                - name: page
+                  in: query
+                  description: 分页查询
+                  schema:
+                    type: string
+                - name: count
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BatchGetDeviceStateReply'
+    /warnings/{page}/{count}:
+        get:
+            summary: 分页查询用户的警告消息
+            operationId: WarningDetect_BatchGetWarning
+            parameters:
+                - name: start
+                  in: query
+                  description: 时间范围 开始时间
+                  schema:
+                    type: string
+                - name: end
+                  in: query
+                  description: 结束时间
+                  schema:
+                    type: string
+                - name: page
+                  in: query
+                  description: 分页查询
+                  schema:
+                    type: string
+                - name: count
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BatchGetWarningReply'
 components:
-    schemas: {}
+    schemas:
+        BatchGetDeviceStateReply:
+            properties:
+                states:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/TestedDeviceState'
+            description: 设备状态信息分页查询响应
+        BatchGetWarningReply:
+            properties:
+                warnings:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Warning'
+            description: 警告消息分页查询相应
+        DeviceStateRegisterInfo:
+            properties:
+                fields:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Field'
+            description: 设备状态注册信息
+        TestedDeviceState:
+            properties:
+                id:
+                    type: string
+                time:
+                    type: string
+                    format: RFC3339
+                voltage:
+                    type: number
+                    format: double
+                current:
+                    type: number
+                    format: double
+                temperature:
+                    type: number
+                    format: double
+        Warning:
+            properties:
+                device_id:
+                    type: string
+                    description: 引发告警的设备的id
+                device_field_name:
+                    type: string
+                    description: 设备字段
+                warning_rule:
+                    $ref: '#/components/schemas/WarningRule'
+                start:
+                    type: string
+                    description: 告警出现的时间范围
+                    format: RFC3339
+                end:
+                    type: string
+                    format: RFC3339
+            description: 警告信息

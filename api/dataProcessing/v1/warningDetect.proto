@@ -2,48 +2,70 @@ syntax = "proto3";
 
 package api.dataProcessing.v1;
 
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "util/api/util/v1/general.proto";
+
 option go_package = "gitee.com/moyusir/data-processing/api/dataProcessing/v1;v1";
 option java_multiple_files = true;
 option java_package = "api.dataProcessing.v1";
 
-import "google/protobuf/timestamp.proto";
-import "util/api/util/v1/general.proto";
-
 // 预警检测服务，主要包括设备信息查询与推送相关的服务
 service WarningDetect {
     // 分页查询指定类别设备的状态信息
-    rpc BatchGetDeviceState(BatchGetDeviceStateRequest)returns (BatchGetDeviceStateReply);
+    rpc BatchGetDeviceState(BatchGetDeviceStateRequest) returns (BatchGetDeviceStateReply) {
+        option (google.api.http) = {
+            get: "/states/{device_class_id}/{page}/{count}"
+        };
+    };
+    // 分页查询用户的警告消息
+    rpc BatchGetWarning(BatchGetWarningRequest) returns (BatchGetWarningReply) {
+        option (google.api.http) = {
+            get: "/warnings/{page}/{count}"
+        };
+    };
     // 查询指定设备注册的预警规则
-    rpc GetDeviceStateRegisterInfo(GetDeviceStateRegisterInfoRequest)returns (api.util.v1.DeviceStateRegisterInfo);
+    rpc GetDeviceStateRegisterInfo(GetDeviceStateRegisterInfoRequest) returns (api.util.v1.DeviceStateRegisterInfo) {
+        option (google.api.http) = {
+            get: "/register-info/states/{device_class_id}"
+        };
+    };
 }
 
 // 设备状态信息分页查询请求
-message BatchGetDeviceStateRequest{
-    // 用户id
-    int64 id=1;
+message BatchGetDeviceStateRequest {
     // 设备类别号
-    int64 device_class_id=2;
+    int64 device_class_id = 1;
     // 时间范围 开始时间
-    google.protobuf.Timestamp start=3;
+    google.protobuf.Timestamp start = 2;
     // 结束时间
-    google.protobuf.Timestamp end=4;
+    google.protobuf.Timestamp end = 3;
     // 分页查询
-    int64 page=5;
-    int64 count=6;
+    int64 page = 4;
+    int64 count = 5;
 }
 // 设备状态信息分页查询响应
-message BatchGetDeviceStateReply{
-    message DeviceStateInfo{
-
-    }
-    repeated DeviceStateInfo device_state_infos = 1;
+message BatchGetDeviceStateReply {
+    repeated api.util.v1.TestedDeviceState states = 1;
 }
+
+// 警告消息分页查询请求
+message BatchGetWarningRequest {
+    // 时间范围 开始时间
+    google.protobuf.Timestamp start = 1;
+    // 结束时间
+    google.protobuf.Timestamp end = 2;
+    // 分页查询
+    int64 page = 3;
+    int64 count = 4;
+}
+// 警告消息分页查询相应
+message BatchGetWarningReply {
+    repeated api.util.v1.Warning warnings = 1;
+}
+
 // 设备状态注册信息查询请求
-message GetDeviceStateRegisterInfoRequest{
-    // 所属用户id
-    string id=1;
+message GetDeviceStateRegisterInfoRequest {
     // 设备类别号
-    int64 device_class_id=2;
-    // 设备id
-    int64 device_id=3;
+    int64 device_class_id = 1;
 }

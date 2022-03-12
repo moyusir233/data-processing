@@ -104,15 +104,13 @@ message DeviceStateRegisterInfo {
 message Warning {
     // 引发告警的设备的id
     string device_id = 1;
-    // 设备名称
-    string device_name = 2;
 	// 设备字段
-	string device_field_name=3;
+	string device_field_name=2;
 	// 违反的告警规则
-	DeviceStateRegisterInfo.WarningRule warning_rule = 4;;
+	DeviceStateRegisterInfo.WarningRule warning_rule = 3;
     // 告警出现的时间范围
-    google.protobuf.Timestamp start=5;
-	google.protobuf.Timestamp end=6;
+    google.protobuf.Timestamp start=4;
+	google.protobuf.Timestamp end=5;
 }
 // 测试中使用的设备状态信息和设备配置信息
 message TestedDeviceConfig{
