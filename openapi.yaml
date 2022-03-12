@@ -7,6 +7,33 @@ info:
     description: 预警检测服务，主要包括设备信息查询与推送相关的服务
     version: 0.0.1
 paths:
+    /configs:
+        get:
+            summary: 查询单个设备的配置信息
+            operationId: Config_GetDeviceConfig
+            parameters:
+                - name: id
+                  in: query
+                  description: 所属用户id
+                  schema:
+                    type: string
+                - name: device_class_id
+                  in: query
+                  description: 设备类别号
+                  schema:
+                    type: string
+                - name: device_id
+                  in: query
+                  description: 设备id
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/TestedDeviceConfig'
     /register-info/states/{device_class_id}:
         get:
             summary: 查询指定设备注册的预警规则
@@ -114,6 +141,13 @@ components:
                     items:
                         $ref: '#/components/schemas/Field'
             description: 设备状态注册信息
+        TestedDeviceConfig:
+            properties:
+                id:
+                    type: string
+                status:
+                    type: boolean
+            description: 测试中使用的设备状态信息和设备配置信息
         TestedDeviceState:
             properties:
                 id:

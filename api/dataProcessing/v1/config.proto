@@ -2,24 +2,28 @@ syntax = "proto3";
 
 package api.dataProcessing.v1;
 
+import "google/api/annotations.proto";
+import "util/api/util/v1/general.proto";
+
 option go_package = "gitee.com/moyusir/data-processing/api/dataProcessing/v1;v1";
 option java_multiple_files = true;
 option java_package = "api.dataProcessing.v1";
+
 // 配置管理服务，主要为配置查询
 service Config {
-	// 查询单个设备的配置信息
-	rpc GetDeviceConfig(GetDeviceConfigRequest)returns (DeviceConfig);
+    // 查询单个设备的配置信息
+    rpc GetDeviceConfig(GetDeviceConfigRequest) returns (api.util.v1.TestedDeviceConfig) {
+        option (google.api.http) = {
+            get: "/configs"
+        };
+    };
 }
 // 配置查询请求
-message GetDeviceConfigRequest{
-	// 所属用户id
-	string id=1;
-	// 设备类别号
-	int64 device_class_id=2;
-	// 设备id
-	int64 device_id=3;
-}
-// 配置信息模板
-message DeviceConfig{
-	int64 id=1;
+message GetDeviceConfigRequest {
+    // 所属用户id
+    string id = 1;
+    // 设备类别号
+    int64 device_class_id = 2;
+    // 设备id
+    string device_id = 3;
 }

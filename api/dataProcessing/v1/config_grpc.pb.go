@@ -8,6 +8,7 @@ package v1
 
 import (
 	context "context"
+	v1 "gitee.com/moyusir/util/api/util/v1"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -23,7 +24,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ConfigClient interface {
 	// 查询单个设备的配置信息
-	GetDeviceConfig(ctx context.Context, in *GetDeviceConfigRequest, opts ...grpc.CallOption) (*DeviceConfig, error)
+	GetDeviceConfig(ctx context.Context, in *GetDeviceConfigRequest, opts ...grpc.CallOption) (*v1.TestedDeviceConfig, error)
 }
 
 type configClient struct {
@@ -34,8 +35,8 @@ func NewConfigClient(cc grpc.ClientConnInterface) ConfigClient {
 	return &configClient{cc}
 }
 
-func (c *configClient) GetDeviceConfig(ctx context.Context, in *GetDeviceConfigRequest, opts ...grpc.CallOption) (*DeviceConfig, error) {
-	out := new(DeviceConfig)
+func (c *configClient) GetDeviceConfig(ctx context.Context, in *GetDeviceConfigRequest, opts ...grpc.CallOption) (*v1.TestedDeviceConfig, error) {
+	out := new(v1.TestedDeviceConfig)
 	err := c.cc.Invoke(ctx, "/api.dataProcessing.v1.Config/GetDeviceConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -48,7 +49,7 @@ func (c *configClient) GetDeviceConfig(ctx context.Context, in *GetDeviceConfigR
 // for forward compatibility
 type ConfigServer interface {
 	// 查询单个设备的配置信息
-	GetDeviceConfig(context.Context, *GetDeviceConfigRequest) (*DeviceConfig, error)
+	GetDeviceConfig(context.Context, *GetDeviceConfigRequest) (*v1.TestedDeviceConfig, error)
 	mustEmbedUnimplementedConfigServer()
 }
 
@@ -56,7 +57,7 @@ type ConfigServer interface {
 type UnimplementedConfigServer struct {
 }
 
-func (UnimplementedConfigServer) GetDeviceConfig(context.Context, *GetDeviceConfigRequest) (*DeviceConfig, error) {
+func (UnimplementedConfigServer) GetDeviceConfig(context.Context, *GetDeviceConfigRequest) (*v1.TestedDeviceConfig, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDeviceConfig not implemented")
 }
 func (UnimplementedConfigServer) mustEmbedUnimplementedConfigServer() {}
