@@ -13,6 +13,9 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"os"
+	"sort"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -146,11 +149,11 @@ func TestDataProcessingService(t *testing.T) {
 				Temperature: 0,
 			}
 			fields := map[string]float64{
-				"voltage":     state.Voltage,
-				"current":     state.Current,
-				"temperature": state.Temperature,
+				//"voltage":     state.Voltage,
+				//"current":     state.Current,
+				//"temperature": state.Temperature,
 			}
-			err := saveState(redisClient, state.Id, &state, state.Time.AsTime().Unix(), fields)
+			err := saveState(redisClient, state.Id, &state, state.Time.AsTime().UnixMilli(), fields)
 			if err != nil {
 				t.Fatal(err)
 				return
@@ -175,7 +178,7 @@ func TestDataProcessingService(t *testing.T) {
 		}
 
 		if len(reply.States) != len(states) {
-			t.Error("State query result length error")
+			t.Errorf("State query result length error:%d %d", len(reply.States), len(states))
 			return
 		}
 
@@ -225,12 +228,23 @@ func TestDataProcessingService(t *testing.T) {
 		// 建立接收警告消息的channel组
 		warningChannels := make([]chan *utilApi.Warning, 2)
 		for i := 0; i < len(warningChannels); i++ {
-			warningChannels[i] = make(chan *utilApi.Warning, len(states))
+			warningChannels[i] = make(chan *utilApi.Warning, len(states)*3)
 		}
 
 		// 定义接收警告信息的协程函数
-		worker := func(done <-chan struct{}, conn *websocket.Conn, warnings chan<- *utilApi.Warning) {
-			defer conn.Close()
+		worker := func(
+			done <-chan struct{},
+			wg *sync.WaitGroup,
+			conn *websocket.Conn,
+			warnings chan<- *utilApi.Warning) {
+			wg.Add(1)
+			defer func() {
+				conn.Close()
+				wg.Done()
+			}()
+
+			var retry int
+
 			for {
 				select {
 				case <-done:
@@ -238,8 +252,17 @@ func TestDataProcessingService(t *testing.T) {
 				default:
 					warning := new(utilApi.Warning)
 					err := conn.ReadJSON(warning)
+					// 由于从连接中读取信息会造成协程阻塞，
+					// 且可能是因为done关闭，然后关闭了ws连接而产生的错误，
+					// 因此当首次发生错误时，先continue，去判断done是否关闭
 					if err != nil {
-						return
+						retry++
+						if retry > 1 {
+							t.Error(err)
+							return
+						} else {
+							continue
+						}
 					}
 					warnings <- warning
 				}
@@ -248,13 +271,16 @@ func TestDataProcessingService(t *testing.T) {
 
 		// 建立并保存ws连接，并启动协程接收信息
 		done := make(chan struct{})
+		wg := new(sync.WaitGroup)
 		var connections []*websocket.Conn
 		// 注册清理函数
 		t.Cleanup(func() {
+			// 首先通知协程进行关闭，然后关闭前端连接，然后等待协程结束，最后关闭channel以避免协程写入关闭的channel
 			close(done)
 			for _, c := range connections {
 				c.Close()
 			}
+			wg.Wait()
 			for _, c := range warningChannels {
 				close(c)
 			}
@@ -274,7 +300,7 @@ func TestDataProcessingService(t *testing.T) {
 			}
 			connections = append(connections, conn)
 			j := i
-			go worker(done, conn, warningChannels[j])
+			go worker(done, wg, conn, warningChannels[j])
 		}
 
 		// 将违反预警规则的设备状态信息写入
@@ -286,29 +312,47 @@ func TestDataProcessingService(t *testing.T) {
 				"temperature": s.Temperature,
 			}
 			s.Time = timestamppb.New(now.Add(time.Duration(i+5) * time.Second))
-			err := saveState(redisClient, s.Id, &s, s.Time.AsTime().Unix(), fields)
+			err := saveState(redisClient, s.Id, &s, s.Time.AsTime().UnixMilli(), fields)
 			if err != nil {
 				return
 			}
 		}
 
-		// 等待一段时间，然后检查channel中接收到的警告消息
-		time.Sleep(20 * time.Second)
+		// 等待一段时间，然后通过计数检查channel中接收到的警告消息
+		time.Sleep(15 * time.Second)
+		count := make(map[string]int, len(states))
 		for _, c := range warningChannels {
-			// 从channel接收每条警告的最大等待时间为10秒，
-			// 若10秒内没读到期望的警告，则视作测试失败
-			for _, s := range states {
-				select {
-				case <-time.After(10 * time.Second):
-					t.Error("The receipt of warning information has timed out")
-				case warning := <-c:
-					if s.Id != warning.DeviceId {
-						t.Errorf(
-							"The received warning message does not match the expected:%v %v",
-							s, *warning,
-						)
+			// 从channel接收每条警告的最大等待时间为3秒，
+			// 若3秒内没读到期望的警告，则视作测试失败
+			for i := 0; i < len(states); i++ {
+				// 每条设备状态信息对应着三个预警字段，即三条警告信息
+				for j := 0; j < 3; j++ {
+					select {
+					case <-time.After(3 * time.Second):
+						t.Error("The receipt of warning information has timed out")
+					case warning := <-c:
+						count[warning.DeviceId]++
 					}
 				}
+			}
+		}
+
+		// 检查是否每项设备状态信息都产生了3条警告记录
+		if len(count) != len(states) {
+			t.Errorf(
+				"The received warning message count does not match the expected:%d %d",
+				len(count), len(states),
+			)
+		}
+		for _, v := range count {
+			// 由于每个state有三项预警字段，因此每个state对应着3条警告信息，
+			// 而由于推送时会将相同的警告消息扇出到所有的前端连接中，
+			// 因此每个state对应的警告信息计数为前端连接数*3
+			if v != 3*len(connections) {
+				t.Errorf(
+					"The received warning message count does not match the expected:%d %d",
+					v, 3*len(connections),
+				)
 			}
 		}
 	})
@@ -328,18 +372,28 @@ func TestDataProcessingService(t *testing.T) {
 			return
 		}
 
-		if len(reply.Warnings) != len(states) {
-			t.Error("State query result length error")
+		if len(reply.Warnings) != 3*len(states) {
+			t.Errorf("State query result length error:%d %d", len(reply.Warnings), 3*len(states))
 			return
 		}
 
+		// 对查询得到的警告信息按照id的降序进行排序，然后与states中保存的设备状态进行比较,
+		// 以确定每项设备状态信息产生了三条警告信息
+		sort.Slice(reply.Warnings, func(i, j int) bool {
+			return reply.Warnings[i].DeviceId < reply.Warnings[j].DeviceId
+		})
+
 		for i, s := range states {
 			// 检查查询结果
-			if reply.Warnings[i].DeviceId != s.Id {
-				t.Errorf(
-					"The received warning message does not match the expected:%v %v",
-					s, *(reply.Warnings[i]),
-				)
+			// 由于警告信息中返回的是完整的设备key，即<用户id>:<设备类别号>:<设备id>，
+			// 因此这里利用后缀来判断id警告信息是否正确
+			for j := i * 3; j < (i+1)*3; j++ {
+				if !strings.HasSuffix(reply.Warnings[j].DeviceId, s.Id) {
+					t.Errorf(
+						"The received warning message does not match the expected:%s %s",
+						s.Id, reply.Warnings[j].DeviceId,
+					)
+				}
 			}
 		}
 

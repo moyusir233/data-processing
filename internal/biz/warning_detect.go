@@ -90,12 +90,13 @@ func NewWarningDetectUsecase(repo UnionRepo, registerInfo []utilApi.DeviceStateR
 	}
 
 	w := &WarningDetectUsecase{
-		repo:                  repo,
-		logger:                log.NewHelper(logger),
-		parser:                infoParser,
-		warningDetectGroup:    new(errgroup.Group),
-		warningPushGroup:      new(errgroup.Group),
-		warningChannel:        make(chan *utilApi.Warning),
+		repo:               repo,
+		logger:             log.NewHelper(logger),
+		parser:             infoParser,
+		warningDetectGroup: new(errgroup.Group),
+		warningPushGroup:   new(errgroup.Group),
+		// TODO 考虑容量
+		warningChannel:        make(chan *utilApi.Warning, 10),
 		warningFanOutChannels: list.New(),
 		pool: &sync.Pool{New: func() interface{} {
 			return &warningPushNode{
@@ -140,21 +141,23 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 		case <-ticker.C:
 			// 配置批量查询TS的参数
 			now := time.Now()
+			// 为了查询[begin,end)这个时间区间，让end减一毫秒从而不包含now这个时间点
 			begin := now.Add(-1 * option.TimeBucket)
-			end := now
-			option.Begin = begin.Unix()
-			option.End = end.Unix()
+			end := now.Add(-1 * time.Millisecond)
+			option.Begin = begin.UnixMilli()
+			option.End = end.UnixMilli()
 
 			// 调用repo层函数进行查询
 			// TODO 考虑错误处理
 			detectFields, err := u.repo.BatchGetDeviceWarningDetectField(label, option)
 			if err != nil {
+				u.logger.Error(err)
 				continue
 			}
 
 			// 依据解析注册信息得到的预警规则进行预警检测
 			for _, f := range detectFields {
-				if !field.Func(f.Value) {
+				if field.Func(f.Value) {
 					// 将警告消息发送到存放警告信息的channel中
 					u.warningChannel <- &utilApi.Warning{
 						DeviceId:        GetDeviceIDFromDeviceStateFieldKey(f.Key),
@@ -184,7 +187,10 @@ func (u *WarningDetectUsecase) warningFanOut() {
 			// TODO 考虑是否需要推送序列化失败或者保存失败的警告消息
 			marshal, err := proto.Marshal(warning)
 			if err == nil {
-				u.repo.SaveWarningMessage(warningsSaveKey, time.Now().Unix(), marshal)
+				err := u.repo.SaveWarningMessage(warningsSaveKey, time.Now().UnixMilli(), marshal)
+				if err != nil {
+					u.logger.Error(err)
+				}
 			}
 
 			// 利用了信号量，避免同时进行链表添加节点和检索链表的行为
@@ -245,13 +251,21 @@ func (u *WarningDetectUsecase) StartDetection() {
 	for i := 0; i < len(u.parser.Info); i++ {
 		fields := u.parser.GetWarningDetectFields(i)
 		for j := 0; j < len(fields); j++ {
+			// 由于启动协程和循环的进行速度不一致，因此不能直接以闭包的形式将i与j传入
+			// 协程中使用，否则可能会造成数组越界的panic
+			deviceClassID, fieldIndex := i, j
 			u.warningDetectGroup.Go(func() error {
-				// 由于构造预警检测的label时不需要使用
-				u.warningDetect(i, &(fields[j]))
+				u.warningDetect(deviceClassID, &(fields[fieldIndex]))
 				return nil
 			})
 		}
 	}
+
+	// 开启预警扇出的协程
+	u.warningDetectGroup.Go(func() error {
+		u.warningFanOut()
+		return nil
+	})
 }
 
 // CloseDetection 关闭预警检测

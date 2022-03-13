@@ -29,9 +29,21 @@ func NewWarningDetectService(wu *biz.WarningDetectUsecase, logger log.Logger) *W
 
 func (s *WarningDetectService) BatchGetDeviceState(ctx context.Context, req *pb.BatchGetDeviceStateRequest) (*pb.BatchGetDeviceStateReply, error) {
 	// 构造查询选项
+	var begin, end int64
+	if req.Start != nil {
+		begin = req.Start.AsTime().Unix()
+	} else {
+		begin = 0
+	}
+	if req.End != nil {
+		end = req.End.AsTime().Unix()
+	} else {
+		end = 0
+	}
+
 	option := &biz.QueryOption{
-		Begin:  req.Start.AsTime().Unix(),
-		End:    req.End.AsTime().Unix(),
+		Begin:  begin,
+		End:    end,
 		Offset: (req.Page - 1) * req.Count,
 		Count:  req.Count,
 	}
@@ -53,9 +65,21 @@ func (s *WarningDetectService) BatchGetDeviceState(ctx context.Context, req *pb.
 
 func (s *WarningDetectService) BatchGetWarning(ctx context.Context, req *pb.BatchGetWarningRequest) (*pb.BatchGetWarningReply, error) {
 	// 构造查询选项
+	var begin, end int64
+	if req.Start != nil {
+		begin = req.Start.AsTime().Unix()
+	} else {
+		begin = 0
+	}
+	if req.End != nil {
+		end = req.End.AsTime().Unix()
+	} else {
+		end = 0
+	}
+
 	option := &biz.QueryOption{
-		Begin:  req.Start.AsTime().Unix(),
-		End:    req.End.AsTime().Unix(),
+		Begin:  begin,
+		End:    end,
 		Offset: (req.Page - 1) * req.Count,
 		Count:  req.Count,
 	}

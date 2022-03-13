@@ -85,19 +85,29 @@ func (r *RedisRepo) BatchGetDeviceWarningDetectField(label string, option *biz.T
 	// 将查询结果进行处理
 	// redis返回的是一个数组，其中每个元素仍是一个数组，
 	// 每个元素数组的第一个元素是TS的key，第二个元素是label数组，第三个元素是由timestamp-value对组成的数组
-	result := make([]biz.TsQueryResult, len(slice))
-	for i, s := range slice {
-		tmp := s.([]interface{})
-		result[i].Key = tmp[0].(string)
-		tmp2 := tmp[2].([]interface{})[0].([]interface{})
-
-		result[i].Timestamp = tmp2[0].(int64)
-
-		value, err := strconv.ParseFloat(tmp2[1].(string), 64)
-		if err != nil {
-			return nil, err
+	result := make([]biz.TsQueryResult, 0, len(slice))
+	for _, sliceInterface := range slice {
+		s := sliceInterface.([]interface{})
+		if len(s) == 0 {
+			continue
 		}
-		result[i].Value = value
+
+		qr := biz.TsQueryResult{}
+		qr.Key = s[0].(string)
+		timestampAndValues := s[2].([]interface{})
+
+		for _, pairInterface := range timestampAndValues {
+			pair := pairInterface.([]interface{})
+
+			qr.Timestamp = pair[0].(int64)
+
+			value, err := strconv.ParseFloat(pair[1].(string), 64)
+			if err != nil {
+				return nil, err
+			}
+			qr.Value = value
+			result = append(result, qr)
+		}
 	}
 
 	return result, nil
