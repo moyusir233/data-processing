@@ -3,7 +3,7 @@
 
 // The build tag makes sure the stub is not built in the final build.
 
-package main
+package test
 
 import (
 	"gitee.com/moyusir/data-processing/internal/biz"

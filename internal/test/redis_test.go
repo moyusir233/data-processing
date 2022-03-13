@@ -14,7 +14,7 @@ import (
 )
 
 func TestData_RedisRepo(t *testing.T) {
-	bootstrap, err := generalInit()
+	bootstrap, err := generalInit("")
 	if err != nil {
 		t.Fatal(err)
 	}

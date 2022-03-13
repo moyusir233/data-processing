@@ -20,10 +20,8 @@ service Config {
 }
 // 配置查询请求
 message GetDeviceConfigRequest {
-    // 所属用户id
-    string id = 1;
     // 设备类别号
-    int64 device_class_id = 2;
+    int64 device_class_id = 1;
     // 设备id
-    string device_id = 3;
+    string device_id = 2;
 }

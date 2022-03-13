@@ -12,11 +12,6 @@ paths:
             summary: 查询单个设备的配置信息
             operationId: Config_GetDeviceConfig
             parameters:
-                - name: id
-                  in: query
-                  description: 所属用户id
-                  schema:
-                    type: string
                 - name: device_class_id
                   in: query
                   description: 设备类别号

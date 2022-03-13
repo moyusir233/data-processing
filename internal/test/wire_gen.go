@@ -4,7 +4,7 @@
 //go:build !wireinject
 // +build !wireinject
 
-package main
+package test
 
 import (
 	"gitee.com/moyusir/data-processing/internal/biz"
