@@ -28,12 +28,12 @@ func initApp(confServer *conf.Server, confData *conf.Data, arg []v1.DeviceStateR
 	unionRepo := data.NewRedisRepo(dataData, logger)
 	configUsecase := biz.NewConfigUsecase(unionRepo, logger)
 	configService := service.NewConfigService(configUsecase, logger)
-	warningDetectUsecase, cleanup2, err := biz.NewWarningDetectUsecase(unionRepo, arg, logger)
+	warningDetectUsecase, err := biz.NewWarningDetectUsecase(unionRepo, arg, logger)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
 	}
-	warningDetectService := service.NewWarningDetectService(warningDetectUsecase, logger)
+	warningDetectService, cleanup2 := service.NewWarningDetectService(warningDetectUsecase, logger)
 	httpServer := server.NewHTTPServer(confServer, configService, warningDetectService, logger)
 	app := newApp(logger, httpServer)
 	return app, func() {

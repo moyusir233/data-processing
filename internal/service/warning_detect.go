@@ -19,12 +19,19 @@ type WarningDetectService struct {
 	logger   *log.Helper
 }
 
-func NewWarningDetectService(wu *biz.WarningDetectUsecase, logger log.Logger) *WarningDetectService {
+func NewWarningDetectService(wu *biz.WarningDetectUsecase, logger log.Logger) (
+	*WarningDetectService, func()) {
+	// 开启预警检测
+	wu.StartDetection()
+
+	// 返回关闭预警检测的清理函数
 	return &WarningDetectService{
-		warningDetectUsecase: wu,
-		upgrader:             &websocket.Upgrader{},
-		logger:               log.NewHelper(logger),
-	}
+			warningDetectUsecase: wu,
+			upgrader:             &websocket.Upgrader{},
+			logger:               log.NewHelper(logger),
+		}, func() {
+			wu.CloseDetection()
+		}
 }
 
 func (s *WarningDetectService) BatchGetDeviceState(ctx context.Context, req *pb.BatchGetDeviceStateRequest) (*pb.BatchGetDeviceStateReply, error) {

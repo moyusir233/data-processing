@@ -82,11 +82,12 @@ type warningPushNode struct {
 	warningChannel chan *utilApi.Warning
 }
 
-func NewWarningDetectUsecase(repo UnionRepo, registerInfo []utilApi.DeviceStateRegisterInfo, logger log.Logger) (*WarningDetectUsecase, func(), error) {
+func NewWarningDetectUsecase(repo UnionRepo, registerInfo []utilApi.DeviceStateRegisterInfo, logger log.Logger) (*WarningDetectUsecase, error) {
 	ctx, cancel := context.WithCancel(context.Background())
+
 	infoParser, err := parser.NewRegisterInfoParser(registerInfo)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	w := &WarningDetectUsecase{
@@ -111,10 +112,8 @@ func NewWarningDetectUsecase(repo UnionRepo, registerInfo []utilApi.DeviceStateR
 		mutex:  new(sync.Mutex),
 	}
 
-	w.StartDetection()
-
 	// 返回关闭预警预测的清理函数
-	return w, func() { w.CloseDetection() }, nil
+	return w, nil
 }
 
 // 负责对某个预警字段进行预警检测
