@@ -7,16 +7,11 @@ info:
     description: 预警检测服务，主要包括设备信息查询与推送相关的服务
     version: 0.0.1
 paths:
-    /configs:
+    /configs/0:
         get:
             summary: 查询单个设备的配置信息
-            operationId: Config_GetDeviceConfig
+            operationId: Config_GetDeviceConfig0
             parameters:
-                - name: device_class_id
-                  in: query
-                  description: 设备类别号
-                  schema:
-                    type: string
                 - name: device_id
                   in: query
                   description: 设备id
@@ -28,7 +23,24 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/TestedDeviceConfig'
+                                $ref: '#/components/schemas/DeviceConfig0'
+    /configs/1:
+        get:
+            summary: 查询单个设备的配置信息
+            operationId: Config_GetDeviceConfig1
+            parameters:
+                - name: device_id
+                  in: query
+                  description: 设备id
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeviceConfig1'
     /register-info/states/{device_class_id}:
         get:
             summary: 查询指定设备注册的预警规则
@@ -46,16 +58,10 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/DeviceStateRegisterInfo'
-    /states/{device_class_id}/{page}/{count}:
+    /states/0/{page}/{count}:
         get:
-            summary: 分页查询指定类别设备的状态信息
-            operationId: WarningDetect_BatchGetDeviceState
+            operationId: WarningDetect_BatchGetDeviceState0
             parameters:
-                - name: device_class_id
-                  in: query
-                  description: 设备类别号
-                  schema:
-                    type: string
                 - name: start
                   in: query
                   description: 时间范围 开始时间
@@ -81,7 +87,37 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/BatchGetDeviceStateReply'
+                                $ref: '#/components/schemas/BatchGetDeviceStateReply0'
+    /states/1/{page}/{count}:
+        get:
+            operationId: WarningDetect_BatchGetDeviceState1
+            parameters:
+                - name: start
+                  in: query
+                  description: 时间范围 开始时间
+                  schema:
+                    type: string
+                - name: end
+                  in: query
+                  description: 结束时间
+                  schema:
+                    type: string
+                - name: page
+                  in: query
+                  description: 分页查询
+                  schema:
+                    type: string
+                - name: count
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BatchGetDeviceStateReply1'
     /warnings/{page}/{count}:
         get:
             summary: 分页查询用户的警告消息
@@ -115,13 +151,18 @@ paths:
                                 $ref: '#/components/schemas/BatchGetWarningReply'
 components:
     schemas:
-        BatchGetDeviceStateReply:
+        BatchGetDeviceStateReply0:
             properties:
                 states:
                     type: array
                     items:
-                        $ref: '#/components/schemas/TestedDeviceState'
-            description: 设备状态信息分页查询响应
+                        $ref: '#/components/schemas/DeviceState0'
+        BatchGetDeviceStateReply1:
+            properties:
+                states:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DeviceState1'
         BatchGetWarningReply:
             properties:
                 warnings:
@@ -129,21 +170,19 @@ components:
                     items:
                         $ref: '#/components/schemas/Warning'
             description: 警告消息分页查询相应
-        DeviceStateRegisterInfo:
-            properties:
-                fields:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/Field'
-            description: 设备状态注册信息
-        TestedDeviceConfig:
+        DeviceConfig0:
             properties:
                 id:
                     type: string
                 status:
                     type: boolean
-            description: 测试中使用的设备状态信息和设备配置信息
-        TestedDeviceState:
+        DeviceConfig1:
+            properties:
+                id:
+                    type: string
+                status:
+                    type: boolean
+        DeviceState0:
             properties:
                 id:
                     type: string
@@ -159,6 +198,29 @@ components:
                 temperature:
                     type: number
                     format: double
+        DeviceState1:
+            properties:
+                id:
+                    type: string
+                time:
+                    type: string
+                    format: RFC3339
+                voltage:
+                    type: number
+                    format: double
+                current:
+                    type: number
+                    format: double
+                temperature:
+                    type: number
+                    format: double
+        DeviceStateRegisterInfo:
+            properties:
+                fields:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Field'
+            description: 设备状态注册信息
         Warning:
             properties:
                 device_id:

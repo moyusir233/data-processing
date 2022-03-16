@@ -8,7 +8,6 @@ package v1
 
 import (
 	context "context"
-	v1 "gitee.com/moyusir/util/api/util/v1"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -24,7 +23,9 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ConfigClient interface {
 	// 查询单个设备的配置信息
-	GetDeviceConfig(ctx context.Context, in *GetDeviceConfigRequest, opts ...grpc.CallOption) (*v1.TestedDeviceConfig, error)
+	GetDeviceConfig0(ctx context.Context, in *GetDeviceConfigRequest, opts ...grpc.CallOption) (*DeviceConfig0, error)
+	// 查询单个设备的配置信息
+	GetDeviceConfig1(ctx context.Context, in *GetDeviceConfigRequest, opts ...grpc.CallOption) (*DeviceConfig1, error)
 }
 
 type configClient struct {
@@ -35,9 +36,18 @@ func NewConfigClient(cc grpc.ClientConnInterface) ConfigClient {
 	return &configClient{cc}
 }
 
-func (c *configClient) GetDeviceConfig(ctx context.Context, in *GetDeviceConfigRequest, opts ...grpc.CallOption) (*v1.TestedDeviceConfig, error) {
-	out := new(v1.TestedDeviceConfig)
-	err := c.cc.Invoke(ctx, "/api.dataProcessing.v1.Config/GetDeviceConfig", in, out, opts...)
+func (c *configClient) GetDeviceConfig0(ctx context.Context, in *GetDeviceConfigRequest, opts ...grpc.CallOption) (*DeviceConfig0, error) {
+	out := new(DeviceConfig0)
+	err := c.cc.Invoke(ctx, "/api.dataProcessing.v1.Config/GetDeviceConfig0", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *configClient) GetDeviceConfig1(ctx context.Context, in *GetDeviceConfigRequest, opts ...grpc.CallOption) (*DeviceConfig1, error) {
+	out := new(DeviceConfig1)
+	err := c.cc.Invoke(ctx, "/api.dataProcessing.v1.Config/GetDeviceConfig1", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +59,9 @@ func (c *configClient) GetDeviceConfig(ctx context.Context, in *GetDeviceConfigR
 // for forward compatibility
 type ConfigServer interface {
 	// 查询单个设备的配置信息
-	GetDeviceConfig(context.Context, *GetDeviceConfigRequest) (*v1.TestedDeviceConfig, error)
+	GetDeviceConfig0(context.Context, *GetDeviceConfigRequest) (*DeviceConfig0, error)
+	// 查询单个设备的配置信息
+	GetDeviceConfig1(context.Context, *GetDeviceConfigRequest) (*DeviceConfig1, error)
 	mustEmbedUnimplementedConfigServer()
 }
 
@@ -57,8 +69,11 @@ type ConfigServer interface {
 type UnimplementedConfigServer struct {
 }
 
-func (UnimplementedConfigServer) GetDeviceConfig(context.Context, *GetDeviceConfigRequest) (*v1.TestedDeviceConfig, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetDeviceConfig not implemented")
+func (UnimplementedConfigServer) GetDeviceConfig0(context.Context, *GetDeviceConfigRequest) (*DeviceConfig0, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDeviceConfig0 not implemented")
+}
+func (UnimplementedConfigServer) GetDeviceConfig1(context.Context, *GetDeviceConfigRequest) (*DeviceConfig1, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDeviceConfig1 not implemented")
 }
 func (UnimplementedConfigServer) mustEmbedUnimplementedConfigServer() {}
 
@@ -73,20 +88,38 @@ func RegisterConfigServer(s grpc.ServiceRegistrar, srv ConfigServer) {
 	s.RegisterService(&Config_ServiceDesc, srv)
 }
 
-func _Config_GetDeviceConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Config_GetDeviceConfig0_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetDeviceConfigRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ConfigServer).GetDeviceConfig(ctx, in)
+		return srv.(ConfigServer).GetDeviceConfig0(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.dataProcessing.v1.Config/GetDeviceConfig",
+		FullMethod: "/api.dataProcessing.v1.Config/GetDeviceConfig0",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConfigServer).GetDeviceConfig(ctx, req.(*GetDeviceConfigRequest))
+		return srv.(ConfigServer).GetDeviceConfig0(ctx, req.(*GetDeviceConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Config_GetDeviceConfig1_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDeviceConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConfigServer).GetDeviceConfig1(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.dataProcessing.v1.Config/GetDeviceConfig1",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConfigServer).GetDeviceConfig1(ctx, req.(*GetDeviceConfigRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -99,8 +132,12 @@ var Config_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*ConfigServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetDeviceConfig",
-			Handler:    _Config_GetDeviceConfig_Handler,
+			MethodName: "GetDeviceConfig0",
+			Handler:    _Config_GetDeviceConfig0_Handler,
+		},
+		{
+			MethodName: "GetDeviceConfig1",
+			Handler:    _Config_GetDeviceConfig1_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

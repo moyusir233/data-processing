@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.17.3
-// source: api/dataProcessing/v1/warningDetect.proto
+// source: api/dataProcessing/v1/warning_detect.proto
 
 package v1
 
@@ -23,8 +23,8 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type WarningDetectClient interface {
-	// 分页查询指定类别设备的状态信息
-	BatchGetDeviceState(ctx context.Context, in *BatchGetDeviceStateRequest, opts ...grpc.CallOption) (*BatchGetDeviceStateReply, error)
+	BatchGetDeviceState0(ctx context.Context, in *BatchGetDeviceStateRequest, opts ...grpc.CallOption) (*BatchGetDeviceStateReply0, error)
+	BatchGetDeviceState1(ctx context.Context, in *BatchGetDeviceStateRequest, opts ...grpc.CallOption) (*BatchGetDeviceStateReply1, error)
 	// 分页查询用户的警告消息
 	BatchGetWarning(ctx context.Context, in *BatchGetWarningRequest, opts ...grpc.CallOption) (*BatchGetWarningReply, error)
 	// 查询指定设备注册的预警规则
@@ -39,9 +39,18 @@ func NewWarningDetectClient(cc grpc.ClientConnInterface) WarningDetectClient {
 	return &warningDetectClient{cc}
 }
 
-func (c *warningDetectClient) BatchGetDeviceState(ctx context.Context, in *BatchGetDeviceStateRequest, opts ...grpc.CallOption) (*BatchGetDeviceStateReply, error) {
-	out := new(BatchGetDeviceStateReply)
-	err := c.cc.Invoke(ctx, "/api.dataProcessing.v1.WarningDetect/BatchGetDeviceState", in, out, opts...)
+func (c *warningDetectClient) BatchGetDeviceState0(ctx context.Context, in *BatchGetDeviceStateRequest, opts ...grpc.CallOption) (*BatchGetDeviceStateReply0, error) {
+	out := new(BatchGetDeviceStateReply0)
+	err := c.cc.Invoke(ctx, "/api.dataProcessing.v1.WarningDetect/BatchGetDeviceState0", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *warningDetectClient) BatchGetDeviceState1(ctx context.Context, in *BatchGetDeviceStateRequest, opts ...grpc.CallOption) (*BatchGetDeviceStateReply1, error) {
+	out := new(BatchGetDeviceStateReply1)
+	err := c.cc.Invoke(ctx, "/api.dataProcessing.v1.WarningDetect/BatchGetDeviceState1", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -70,8 +79,8 @@ func (c *warningDetectClient) GetDeviceStateRegisterInfo(ctx context.Context, in
 // All implementations must embed UnimplementedWarningDetectServer
 // for forward compatibility
 type WarningDetectServer interface {
-	// 分页查询指定类别设备的状态信息
-	BatchGetDeviceState(context.Context, *BatchGetDeviceStateRequest) (*BatchGetDeviceStateReply, error)
+	BatchGetDeviceState0(context.Context, *BatchGetDeviceStateRequest) (*BatchGetDeviceStateReply0, error)
+	BatchGetDeviceState1(context.Context, *BatchGetDeviceStateRequest) (*BatchGetDeviceStateReply1, error)
 	// 分页查询用户的警告消息
 	BatchGetWarning(context.Context, *BatchGetWarningRequest) (*BatchGetWarningReply, error)
 	// 查询指定设备注册的预警规则
@@ -83,8 +92,11 @@ type WarningDetectServer interface {
 type UnimplementedWarningDetectServer struct {
 }
 
-func (UnimplementedWarningDetectServer) BatchGetDeviceState(context.Context, *BatchGetDeviceStateRequest) (*BatchGetDeviceStateReply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BatchGetDeviceState not implemented")
+func (UnimplementedWarningDetectServer) BatchGetDeviceState0(context.Context, *BatchGetDeviceStateRequest) (*BatchGetDeviceStateReply0, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BatchGetDeviceState0 not implemented")
+}
+func (UnimplementedWarningDetectServer) BatchGetDeviceState1(context.Context, *BatchGetDeviceStateRequest) (*BatchGetDeviceStateReply1, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BatchGetDeviceState1 not implemented")
 }
 func (UnimplementedWarningDetectServer) BatchGetWarning(context.Context, *BatchGetWarningRequest) (*BatchGetWarningReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchGetWarning not implemented")
@@ -105,20 +117,38 @@ func RegisterWarningDetectServer(s grpc.ServiceRegistrar, srv WarningDetectServe
 	s.RegisterService(&WarningDetect_ServiceDesc, srv)
 }
 
-func _WarningDetect_BatchGetDeviceState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _WarningDetect_BatchGetDeviceState0_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(BatchGetDeviceStateRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(WarningDetectServer).BatchGetDeviceState(ctx, in)
+		return srv.(WarningDetectServer).BatchGetDeviceState0(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.dataProcessing.v1.WarningDetect/BatchGetDeviceState",
+		FullMethod: "/api.dataProcessing.v1.WarningDetect/BatchGetDeviceState0",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WarningDetectServer).BatchGetDeviceState(ctx, req.(*BatchGetDeviceStateRequest))
+		return srv.(WarningDetectServer).BatchGetDeviceState0(ctx, req.(*BatchGetDeviceStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WarningDetect_BatchGetDeviceState1_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchGetDeviceStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WarningDetectServer).BatchGetDeviceState1(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.dataProcessing.v1.WarningDetect/BatchGetDeviceState1",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WarningDetectServer).BatchGetDeviceState1(ctx, req.(*BatchGetDeviceStateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -167,8 +197,12 @@ var WarningDetect_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*WarningDetectServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "BatchGetDeviceState",
-			Handler:    _WarningDetect_BatchGetDeviceState_Handler,
+			MethodName: "BatchGetDeviceState0",
+			Handler:    _WarningDetect_BatchGetDeviceState0_Handler,
+		},
+		{
+			MethodName: "BatchGetDeviceState1",
+			Handler:    _WarningDetect_BatchGetDeviceState1_Handler,
 		},
 		{
 			MethodName: "BatchGetWarning",
@@ -180,5 +214,5 @@ var WarningDetect_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/dataProcessing/v1/warningDetect.proto",
+	Metadata: "api/dataProcessing/v1/warning_detect.proto",
 }

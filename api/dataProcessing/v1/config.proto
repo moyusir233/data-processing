@@ -1,9 +1,9 @@
+
 syntax = "proto3";
 
 package api.dataProcessing.v1;
 
 import "google/api/annotations.proto";
-import "util/api/util/v1/general.proto";
 
 option go_package = "gitee.com/moyusir/data-processing/api/dataProcessing/v1;v1";
 option java_multiple_files = true;
@@ -11,17 +11,36 @@ option java_package = "api.dataProcessing.v1";
 
 // 配置管理服务，主要为配置查询
 service Config {
-    // 查询单个设备的配置信息
-    rpc GetDeviceConfig(GetDeviceConfigRequest) returns (api.util.v1.TestedDeviceConfig) {
-        option (google.api.http) = {
-            get: "/configs"
-        };
-    };
+
+// 查询单个设备的配置信息
+rpc GetDeviceConfig0(GetDeviceConfigRequest) returns (DeviceConfig0) {
+	option (google.api.http) = {
+		get: "/configs/0"
+	};
+};
+
+// 查询单个设备的配置信息
+rpc GetDeviceConfig1(GetDeviceConfigRequest) returns (DeviceConfig1) {
+	option (google.api.http) = {
+		get: "/configs/1"
+	};
+};
+
 }
 // 配置查询请求
 message GetDeviceConfigRequest {
-    // 设备类别号
-    int64 device_class_id = 1;
     // 设备id
-    string device_id = 2;
+    string device_id = 1;
+}
+
+
+
+message DeviceConfig0 {
+    string id = 1;
+    bool status = 2;
+}
+
+message DeviceConfig1 {
+    string id = 1;
+    bool status = 2;
 }

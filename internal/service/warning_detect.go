@@ -34,7 +34,10 @@ func NewWarningDetectService(wu *biz.WarningDetectUsecase, logger log.Logger) (
 		}
 }
 
-func (s *WarningDetectService) BatchGetDeviceState(ctx context.Context, req *pb.BatchGetDeviceStateRequest) (*pb.BatchGetDeviceStateReply, error) {
+func (s *WarningDetectService) BatchGetDeviceState0(ctx context.Context, req *pb.BatchGetDeviceStateRequest) (*pb.BatchGetDeviceStateReply0, error) {
+	// 代码注入deviceClassID
+	deviceClassID := 0
+
 	// 构造查询选项
 	var begin, end int64
 	if req.Start != nil {
@@ -56,15 +59,54 @@ func (s *WarningDetectService) BatchGetDeviceState(ctx context.Context, req *pb.
 	}
 
 	// 调用biz层的查询函数
-	states, err := s.warningDetectUsecase.BatchGetDeviceStateInfo(int(req.DeviceClassId), option, new(utilApi.TestedDeviceState))
+	states, err := s.warningDetectUsecase.BatchGetDeviceStateInfo(deviceClassID, option, new(pb.DeviceState0))
 	if err != nil {
 		return nil, err
 	}
 
-	// 将接口类型向下转型
-	reply := new(pb.BatchGetDeviceStateReply)
+	reply := new(pb.BatchGetDeviceStateReply0)
 	for _, s := range states {
-		reply.States = append(reply.States, s.(*utilApi.TestedDeviceState))
+		// 将接口类型向下转型
+		reply.States = append(reply.States, s.(*pb.DeviceState0))
+	}
+
+	return reply, nil
+}
+
+func (s *WarningDetectService) BatchGetDeviceState1(ctx context.Context, req *pb.BatchGetDeviceStateRequest) (*pb.BatchGetDeviceStateReply1, error) {
+	// 代码注入deviceClassID
+	deviceClassID := 1
+
+	// 构造查询选项
+	var begin, end int64
+	if req.Start != nil {
+		begin = req.Start.AsTime().Unix()
+	} else {
+		begin = 0
+	}
+	if req.End != nil {
+		end = req.End.AsTime().Unix()
+	} else {
+		end = 0
+	}
+
+	option := &biz.QueryOption{
+		Begin:  begin,
+		End:    end,
+		Offset: (req.Page - 1) * req.Count,
+		Count:  req.Count,
+	}
+
+	// 调用biz层的查询函数
+	states, err := s.warningDetectUsecase.BatchGetDeviceStateInfo(deviceClassID, option, new(pb.DeviceState1))
+	if err != nil {
+		return nil, err
+	}
+
+	reply := new(pb.BatchGetDeviceStateReply1)
+	for _, s := range states {
+		// 将接口类型向下转型
+		reply.States = append(reply.States, s.(*pb.DeviceState1))
 	}
 
 	return reply, nil

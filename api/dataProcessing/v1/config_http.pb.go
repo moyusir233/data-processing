@@ -6,7 +6,6 @@ package v1
 
 import (
 	context "context"
-	v1 "gitee.com/moyusir/util/api/util/v1"
 	http "github.com/go-kratos/kratos/v2/transport/http"
 	binding "github.com/go-kratos/kratos/v2/transport/http/binding"
 )
@@ -19,35 +18,57 @@ var _ = binding.EncodeURL
 const _ = http.SupportPackageIsVersion1
 
 type ConfigHTTPServer interface {
-	GetDeviceConfig(context.Context, *GetDeviceConfigRequest) (*v1.TestedDeviceConfig, error)
+	GetDeviceConfig0(context.Context, *GetDeviceConfigRequest) (*DeviceConfig0, error)
+	GetDeviceConfig1(context.Context, *GetDeviceConfigRequest) (*DeviceConfig1, error)
 }
 
 func RegisterConfigHTTPServer(s *http.Server, srv ConfigHTTPServer) {
 	r := s.Route("/")
-	r.GET("/configs", _Config_GetDeviceConfig0_HTTP_Handler(srv))
+	r.GET("/configs/0", _Config_GetDeviceConfig00_HTTP_Handler(srv))
+	r.GET("/configs/1", _Config_GetDeviceConfig10_HTTP_Handler(srv))
 }
 
-func _Config_GetDeviceConfig0_HTTP_Handler(srv ConfigHTTPServer) func(ctx http.Context) error {
+func _Config_GetDeviceConfig00_HTTP_Handler(srv ConfigHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in GetDeviceConfigRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, "/api.dataProcessing.v1.Config/GetDeviceConfig")
+		http.SetOperation(ctx, "/api.dataProcessing.v1.Config/GetDeviceConfig0")
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetDeviceConfig(ctx, req.(*GetDeviceConfigRequest))
+			return srv.GetDeviceConfig0(ctx, req.(*GetDeviceConfigRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*v1.TestedDeviceConfig)
+		reply := out.(*DeviceConfig0)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _Config_GetDeviceConfig10_HTTP_Handler(srv ConfigHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetDeviceConfigRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, "/api.dataProcessing.v1.Config/GetDeviceConfig1")
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetDeviceConfig1(ctx, req.(*GetDeviceConfigRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*DeviceConfig1)
 		return ctx.Result(200, reply)
 	}
 }
 
 type ConfigHTTPClient interface {
-	GetDeviceConfig(ctx context.Context, req *GetDeviceConfigRequest, opts ...http.CallOption) (rsp *v1.TestedDeviceConfig, err error)
+	GetDeviceConfig0(ctx context.Context, req *GetDeviceConfigRequest, opts ...http.CallOption) (rsp *DeviceConfig0, err error)
+	GetDeviceConfig1(ctx context.Context, req *GetDeviceConfigRequest, opts ...http.CallOption) (rsp *DeviceConfig1, err error)
 }
 
 type ConfigHTTPClientImpl struct {
@@ -58,11 +79,24 @@ func NewConfigHTTPClient(client *http.Client) ConfigHTTPClient {
 	return &ConfigHTTPClientImpl{client}
 }
 
-func (c *ConfigHTTPClientImpl) GetDeviceConfig(ctx context.Context, in *GetDeviceConfigRequest, opts ...http.CallOption) (*v1.TestedDeviceConfig, error) {
-	var out v1.TestedDeviceConfig
-	pattern := "/configs"
+func (c *ConfigHTTPClientImpl) GetDeviceConfig0(ctx context.Context, in *GetDeviceConfigRequest, opts ...http.CallOption) (*DeviceConfig0, error) {
+	var out DeviceConfig0
+	pattern := "/configs/0"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation("/api.dataProcessing.v1.Config/GetDeviceConfig"))
+	opts = append(opts, http.Operation("/api.dataProcessing.v1.Config/GetDeviceConfig0"))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, err
+}
+
+func (c *ConfigHTTPClientImpl) GetDeviceConfig1(ctx context.Context, in *GetDeviceConfigRequest, opts ...http.CallOption) (*DeviceConfig1, error) {
+	var out DeviceConfig1
+	pattern := "/configs/1"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation("/api.dataProcessing.v1.Config/GetDeviceConfig1"))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {

@@ -6,7 +6,6 @@ import (
 	"github.com/go-kratos/kratos/v2/log"
 
 	pb "gitee.com/moyusir/data-processing/api/dataProcessing/v1"
-	utilApi "gitee.com/moyusir/util/api/util/v1"
 )
 
 type ConfigService struct {
@@ -22,14 +21,32 @@ func NewConfigService(cu *biz.ConfigUsecase, logger log.Logger) *ConfigService {
 	}
 }
 
-func (s *ConfigService) GetDeviceConfig(ctx context.Context, req *pb.GetDeviceConfigRequest) (*utilApi.TestedDeviceConfig, error) {
+func (s *ConfigService) GetDeviceConfig0(ctx context.Context, req *pb.GetDeviceConfigRequest) (*pb.DeviceConfig0, error) {
 	// 构建查询选项
 	info := &biz.DeviceGeneralInfo{
-		DeviceID:      req.DeviceId,
-		DeviceClassID: int(req.DeviceClassId),
+		DeviceID: req.DeviceId,
+		// 代码注入deviceClassID
+		DeviceClassID: 0,
 	}
 
-	config := new(utilApi.TestedDeviceConfig)
+	config := new(pb.DeviceConfig0)
+	err := s.configUsecase.GetDeviceConfig(info, config)
+	if err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
+func (s *ConfigService) GetDeviceConfig1(ctx context.Context, req *pb.GetDeviceConfigRequest) (*pb.DeviceConfig1, error) {
+	// 构建查询选项
+	info := &biz.DeviceGeneralInfo{
+		DeviceID: req.DeviceId,
+		// 代码注入deviceClassID
+		DeviceClassID: 1,
+	}
+
+	config := new(pb.DeviceConfig1)
 	err := s.configUsecase.GetDeviceConfig(info, config)
 	if err != nil {
 		return nil, err
