@@ -31,7 +31,10 @@ func TestDataProcessingService(t *testing.T) {
 	// 定义测试时使用的注册信息
 	registerInfo := []utilApi.DeviceStateRegisterInfo{
 		{
-			// 以utilApi.TestedDeviceState为模板进行定义
+			Fields: nil,
+		},
+		{
+			// 以v1.DeviceState1为模板进行定义
 			Fields: []*utilApi.DeviceStateRegisterInfo_Field{
 				// 定义字段voltage的预警规则为1秒内的平均值不超过100
 				{
@@ -99,9 +102,9 @@ func TestDataProcessingService(t *testing.T) {
 	// 1. 测试设备的配置查询功能
 	t.Run("Test_GetDeviceConfig", func(t *testing.T) {
 		// 初始化测试数据，并写入到数据库中
-		var configs []utilApi.TestedDeviceConfig
+		var configs []v1.DeviceConfig1
 		for i := 0; i < 5; i++ {
-			config := utilApi.TestedDeviceConfig{
+			config := v1.DeviceConfig1{
 				Id:     fmt.Sprintf("test%d", i),
 				Status: false,
 			}
@@ -115,11 +118,10 @@ func TestDataProcessingService(t *testing.T) {
 
 		// 进行查询
 		for _, c := range configs {
-			deviceConfig, err := configHTTPClient.GetDeviceConfig(
+			deviceConfig, err := configHTTPClient.GetDeviceConfig1(
 				context.Background(),
 				&v1.GetDeviceConfigRequest{
-					DeviceClassId: 0,
-					DeviceId:      c.Id,
+					DeviceId: c.Id,
 				},
 			)
 			if err != nil {
@@ -137,10 +139,10 @@ func TestDataProcessingService(t *testing.T) {
 	// 2. 测试设备状态的批量查询功能
 	t.Run("Test_BatchGetDeviceState", func(t *testing.T) {
 		// 初始化测试用例
-		var states []utilApi.TestedDeviceState
+		var states []v1.DeviceState1
 		for i := 0; i < 5; i++ {
 			// 为了不影响之后的预警检测测试，这里写入不违反注册信息处填写的预警规则的设备状态
-			state := utilApi.TestedDeviceState{
+			state := v1.DeviceState1{
 				Id: fmt.Sprintf("%s%d", t.Name(), i),
 				// 注意这里写入的设备状态的时间应该为递增顺序，便于后续批量查询的检查
 				Time:        timestamppb.New(time.Now().Add(time.Duration(i) * time.Second)),
@@ -162,14 +164,13 @@ func TestDataProcessingService(t *testing.T) {
 		}
 
 		// 执行查询，并检查查询结果
-		reply, err := warningDetectHTTPClient.BatchGetDeviceState(
+		reply, err := warningDetectHTTPClient.BatchGetDeviceState1(
 			context.Background(),
 			&v1.BatchGetDeviceStateRequest{
-				DeviceClassId: 0,
-				Start:         nil,
-				End:           nil,
-				Page:          0,
-				Count:         0,
+				Start: nil,
+				End:   nil,
+				Page:  0,
+				Count: 0,
 			},
 		)
 		if err != nil {
@@ -210,13 +211,13 @@ func TestDataProcessingService(t *testing.T) {
 	})
 
 	// 第四个测试和第五个测试中共用的设备状态信息
-	var states []utilApi.TestedDeviceState
+	var states []v1.DeviceState1
 
 	// 4. 测试预警检测与多连接的预警推送功能
 	t.Run("Test_WarningDetect", func(t *testing.T) {
 		// 准备违反预警规则的设备状态信息
 		for i := 0; i < 5; i++ {
-			state := utilApi.TestedDeviceState{
+			state := v1.DeviceState1{
 				Id:          fmt.Sprintf("%s%d", t.Name(), i),
 				Voltage:     1000,
 				Current:     0,

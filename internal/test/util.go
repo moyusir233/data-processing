@@ -114,7 +114,7 @@ initClient:
 func saveConfig(client *data.Data, deviceID string, config proto.Message) error {
 	key := biz.GetDeviceConfigKey(&biz.DeviceGeneralInfo{
 		DeviceID:      deviceID,
-		DeviceClassID: 0,
+		DeviceClassID: 1,
 	})
 	marshal, err := proto.Marshal(config)
 	if err != nil {
@@ -133,7 +133,7 @@ func saveState(
 	fields map[string]float64) error {
 	cmders, err := client.TxPipelined(context.Background(), func(p redis.Pipeliner) error {
 		// 保存设备状态
-		stateKey := biz.GetDeviceStateKey(0)
+		stateKey := biz.GetDeviceStateKey(1)
 		marshal, err := proto.Marshal(state)
 		if err != nil {
 			return err
@@ -148,9 +148,9 @@ func saveState(
 		for k, v := range fields {
 			fieldKey := biz.GetDeviceStateFieldKey(&biz.DeviceGeneralInfo{
 				DeviceID:      deviceID,
-				DeviceClassID: 0,
+				DeviceClassID: 1,
 			}, k)
-			label := biz.GetDeviceStateFieldLabel(0, k)
+			label := biz.GetDeviceStateFieldLabel(1, k)
 
 			var args []interface{}
 			args = append(args, "TS.ADD")
