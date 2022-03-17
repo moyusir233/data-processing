@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"gitee.com/moyusir/data-processing/internal/conf"
-	utilApi "gitee.com/moyusir/util/api/util/v1"
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/tracing"
@@ -58,7 +57,12 @@ func main() {
 		panic(err)
 	}
 
-	app, cleanup, err := initApp(bc.Server, bc.Data, []utilApi.DeviceStateRegisterInfo{}, logger)
+	registerInfo, err := conf.LoadRegisterInfo(bc.Data.DeviceStateRegisterInfo)
+	if err != nil {
+		panic(err)
+	}
+
+	app, cleanup, err := initApp(bc.Server, bc.Data, registerInfo, logger)
 	if err != nil {
 		panic(err)
 	}

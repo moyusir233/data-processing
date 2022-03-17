@@ -1,8 +1,11 @@
 package conf
 
 import (
+	"encoding/json"
+	utilApi "gitee.com/moyusir/util/api/util/v1"
 	"github.com/go-kratos/kratos/v2/config"
 	"github.com/go-kratos/kratos/v2/config/file"
+	"io/ioutil"
 	"log"
 	"os"
 )
@@ -40,4 +43,19 @@ func LoadConfig(path string) (*Bootstrap, error) {
 		return nil, err
 	}
 	return &bc, nil
+}
+
+func LoadRegisterInfo(path string) ([]utilApi.DeviceStateRegisterInfo, error) {
+	bytes, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var infos []utilApi.DeviceStateRegisterInfo
+	err = json.Unmarshal(bytes, &infos)
+	if err != nil {
+		return nil, err
+	}
+
+	return infos, nil
 }

@@ -2,7 +2,6 @@ server:
   http:
     addr: 0.0.0.0:8000
     timeout: 60s
-    port: 8000
 data:
   redis:
     host: test-redis.test.svc.cluster.local
@@ -11,3 +10,4 @@ data:
     masterName: mymaster
     poolSize: 5
     minIdleConns: 2
+  deviceStateRegisterInfo: /etc/app-configs/register_info.json
