@@ -67,7 +67,7 @@ func (r *RedisRepo) BatchGetDeviceWarningDetectField(label string, option *biz.T
 	command = append(command, "ALIGN", "start")
 
 	// 配置聚合查询
-	if option.AggregationType != "" {
+	if option.AggregationType != "none" && option.AggregationType != "" {
 		command = append(command,
 			"AGGREGATION",
 			option.AggregationType,
