@@ -39,15 +39,15 @@ func NewWarningDetectService(wu *biz.WarningDetectUsecase, logger log.Logger) (
 
 func (s *WarningDetectService) BatchGetDeviceStateInfo(ctx context.Context, req *pb.BatchGetDeviceStateRequest) (*pb.BatchGetDeviceStateReply, error) {
 	option := new(biz.QueryOption)
-	if req.Start != nil {
+	if req.Past != nil {
+		option.Past = req.Past.AsDuration()
+	} else if req.Start != nil {
 		start := req.Start.AsTime()
 		option.Start = &start
 		if req.End != nil {
 			stop := req.End.AsTime()
 			option.Stop = &stop
 		}
-	} else if req.Past != nil {
-		option.Past = req.Past.AsDuration()
 	}
 
 	if req.Filter != nil {
@@ -66,15 +66,15 @@ func (s *WarningDetectService) BatchGetDeviceStateInfo(ctx context.Context, req 
 
 func (s *WarningDetectService) BatchGetWarning(ctx context.Context, req *pb.BatchGetWarningRequest) (*pb.BatchGetWarningReply, error) {
 	option := new(biz.QueryOption)
-	if req.Start != nil {
+	if req.Past != nil {
+		option.Past = req.Past.AsDuration()
+	} else if req.Start != nil {
 		start := req.Start.AsTime()
 		option.Start = &start
 		if req.End != nil {
 			stop := req.End.AsTime()
 			option.Stop = &stop
 		}
-	} else if req.Past != nil {
-		option.Past = req.Past.AsDuration()
 	}
 
 	if req.Filter != nil {

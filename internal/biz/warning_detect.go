@@ -50,7 +50,7 @@ type WarningDetectRepo interface {
 	// GetWarningMessage 查询当前存储在数据库中的警告信息
 	GetWarningMessage(option *QueryOption) ([]*utilApi.Warning, error)
 	// SaveWarningMessage 保存警告信息
-	SaveWarningMessage(warnings ...*utilApi.Warning) error
+	SaveWarningMessage(bucket string, warnings ...*utilApi.Warning) error
 	// RunWarningDetectTask 依据预警字段注册的预警规则，创建并运行下采样设备状态信息数据的task
 	RunWarningDetectTask(config *WarningDetectTaskConfig) (*domain.Run, error)
 	// StopWarningDetectTask 关闭指定task的运行
@@ -202,6 +202,7 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 // 负责保存警告信息到数据库以及将channel的警告消息扇出到warningFanOutChannels的channel中
 // 并负责检测链表的状态，及时将非活跃状态的节点放回池中
 func (u *WarningDetectUsecase) warningFanOut() {
+	bucket := fmt.Sprintf("%s-warnings", conf.Username)
 	for {
 		select {
 		case <-u.ctx.Done():
@@ -209,7 +210,7 @@ func (u *WarningDetectUsecase) warningFanOut() {
 		case warning := <-u.warningChannel:
 			// 首先保存警告消息
 			// TODO 考虑是否需要推送序列化失败或者保存失败的警告消息
-			err := u.repo.SaveWarningMessage(warning)
+			err := u.repo.SaveWarningMessage(bucket, warning)
 			if err != nil {
 				u.logger.Error(err)
 			}
@@ -337,17 +338,14 @@ func (u *WarningDetectUsecase) AddWarningPushConnection(conn *websocket.Conn) {
 func (u *WarningDetectUsecase) BatchGetDeviceStateInfo(
 	deviceClassID int,
 	option *QueryOption) ([]*v1.DeviceState, error) {
-	// 填充查询的参数，并将关于deviceID的filter转换为对_measurement的filter
 	option.Bucket = conf.Username
-	if deviceID, ok := option.Filter["deviceID"]; ok {
-		delete(option.Filter, "deviceID")
-		option.Filter["_measurement"] = deviceID
-	}
 	return u.repo.BatchGetDeviceStateInfo(deviceClassID, option)
 }
 
 // BatchGetWarning 批量查询警告信息
 func (u *WarningDetectUsecase) BatchGetWarning(option *QueryOption) ([]*utilApi.Warning, error) {
+	// 以<用户名-warning>为名的bucket中保存着警告信息
+	option.Bucket = fmt.Sprintf("%s-warnings", conf.Username)
 	return u.repo.GetWarningMessage(option)
 }
 

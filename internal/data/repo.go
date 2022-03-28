@@ -118,8 +118,15 @@ func (r *Repo) StopWarningDetectTask(run *domain.Run) error {
 
 // BatchGetDeviceStateInfo 批量查询某一类设备的状态信息
 func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOption) ([]*v1.DeviceState, error) {
+	// 填充查询的参数，并将关于deviceID的filter转换为对_measurement的filter
+	if deviceID, ok := option.Filter["deviceID"]; ok {
+		delete(option.Filter, "deviceID")
+		option.Filter["_measurement"] = deviceID
+	}
+
 	// 查询设备状态信息时，以deviceClassID和_measurement即设备id以及时间_time作为group key
 	option.GroupBy = append(option.GroupBy, "deviceClassID", "_measurement", "_time")
+
 	// 添加关于deviceClassID的filter
 	option.Filter["deviceClassID"] = strconv.Itoa(deviceClassID)
 
@@ -170,8 +177,6 @@ func (r *Repo) BatchGetDeviceWarningDetectField(deviceClassID int, fieldName str
 }
 
 func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, error) {
-	// 以<用户名-warning>为名的bucket中保存着警告信息
-	option.Bucket = fmt.Sprintf("%s-warnings", conf.Username)
 	// 以设备id和设备字段名和设备类别号以及_time作为group key
 	option.GroupBy = append(
 		option.GroupBy, "_measurement", "deviceFieldName", "deviceClassID", "_time")
@@ -227,8 +232,7 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, e
 
 // SaveWarningMessage 保存警告信息，默认以警告信息的检测区间start为警告的发生时间
 // 除了警告信息的message字段、start字段、end字段作为field，deviceID作为_measurement，其余的都作为tag
-func (r *Repo) SaveWarningMessage(warnings ...*utilApi.Warning) error {
-	bucket := fmt.Sprintf("%s-warnings", conf.Username)
+func (r *Repo) SaveWarningMessage(bucket string, warnings ...*utilApi.Warning) error {
 	writeAPI := r.influxdbClient.WriteAPI(r.influxdbClient.org, bucket)
 	defer writeAPI.Flush()
 

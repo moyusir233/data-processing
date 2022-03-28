@@ -171,7 +171,6 @@ func TestDataProcessingService(t *testing.T) {
 			)
 			if err != nil {
 				t.Fatal(err)
-				return
 			}
 			states = append(states, state)
 		}
@@ -181,8 +180,9 @@ func TestDataProcessingService(t *testing.T) {
 			&v1.BatchGetDeviceStateRequest{
 				DeviceClassId: 1,
 				Start:         timestamppb.New(now),
-				End:           timestamppb.New(now.Add(20 * time.Second)),
-			})
+				End:           timestamppb.New(now.Add(5 * time.Second)),
+			},
+		)
 		if err != nil {
 			t.Error(err)
 			return
