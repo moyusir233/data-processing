@@ -54,7 +54,8 @@ func (r *Repo) RunWarningDetectTask(config *biz.WarningDetectTaskConfig) (*domai
 	var flux string
 	if config.AggregateType != utilApi.DeviceStateRegisterInfo_NONE {
 		fluxFormat := `
-		data = range(start: -task.every)
+		data = from(bucket: "%s")
+			|> range(start: -task.every)
 			|> filter(fn: (r) => r["deviceClassID"] == "%d")
 			|> filter(fn: (r) => r["_field"] == "%s")
 		
@@ -73,13 +74,15 @@ func (r *Repo) RunWarningDetectTask(config *biz.WarningDetectTaskConfig) (*domai
 			fn = "sum"
 		}
 		flux = fmt.Sprintf(fluxFormat,
+			conf.Username,
 			config.DeviceClassID,
 			config.FieldName,
 			fn, config.TargetBucket, r.influxdbClient.org,
 		)
 	} else {
 		fluxFormat := `
-		data = range(start: -task.every)
+		data = from(bucket: "%s")
+			|> range(start: -task.every)
 			|> filter(fn: (r) => r["deviceClassID"] == "%d")
 			|> filter(fn: (r) => r["_field"] == "%s")
 		
@@ -87,6 +90,7 @@ func (r *Repo) RunWarningDetectTask(config *biz.WarningDetectTaskConfig) (*domai
 			|> to(bucket: "%s", org: "%s")`
 
 		flux = fmt.Sprintf(fluxFormat,
+			conf.Username,
 			config.DeviceClassID,
 			config.FieldName,
 			config.TargetBucket, r.influxdbClient.org,
@@ -98,7 +102,7 @@ func (r *Repo) RunWarningDetectTask(config *biz.WarningDetectTaskConfig) (*domai
 		config.Name,
 		flux,
 		config.Every.String(),
-		r.influxdbClient.org,
+		r.influxdbClient.orgId,
 	)
 	if err != nil {
 		return nil, err
@@ -135,7 +139,7 @@ func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOptio
 		}
 		// result达到容量上限，则需要扩容
 		if pos == len(result) {
-			result = append(result, &v1.DeviceState{})
+			result = append(result, &v1.DeviceState{Fields: make(map[string]float64)})
 		}
 
 		record := tableResult.Record()
@@ -248,7 +252,7 @@ func (r *Repo) SaveWarningMessage(warnings ...*utilApi.Warning) error {
 }
 
 func buildFluxQuery(option *biz.QueryOption) string {
-	flux := fmt.Sprintf(`from(bucket: "%s"`, option.Bucket)
+	flux := fmt.Sprintf(`from(bucket: "%s")`, option.Bucket)
 
 	if option.Past != 0 {
 		rangeFilter := "|> range(start: -%s)"
@@ -267,21 +271,15 @@ func buildFluxQuery(option *biz.QueryOption) string {
 	}
 
 	if len(option.Filter) != 0 {
-		filter := "|> filter(fn: (r) => )"
-		count := 0
+		filterFormat := `|> filter(fn: (r) => %s)`
+		filters := make([]string, 0, len(option.Filter))
 
 		for k, v := range option.Filter {
-			var format string
-			if count == 0 {
-				format = `r["%s"] == "%s"`
-				count++
-			} else {
-				format = ` and r["%s"] == "%s"`
-			}
-			filter += fmt.Sprintf(format, k, v)
+			format := `r["%s"] == "%s"`
+			filters = append(filters, fmt.Sprintf(format, k, v))
 		}
 
-		flux += filter
+		flux += fmt.Sprintf(filterFormat, strings.Join(filters, " and "))
 	}
 
 	if len(option.GroupBy) != 0 {

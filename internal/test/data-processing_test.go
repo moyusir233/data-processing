@@ -100,7 +100,9 @@ func TestDataProcessingService(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		clearInfluxdb(influxClient, "test", "test", 1)
+		for _, bucket := range []string{"test", "test-warning_detect", "test-warnings"} {
+			clearInfluxdb(influxClient, "test", bucket, 1)
+		}
 		cleanup2()
 	})
 
@@ -160,10 +162,8 @@ func TestDataProcessingService(t *testing.T) {
 				Current:     1000,
 				Temperature: 0,
 			}
-			fields := map[string]interface{}{
-				//"voltage":     state.Voltage,
-				//"current":     state.Current,
-				//"temperature": state.Temperature,
+			fields := map[string]float64{
+				"tmp": 123.0,
 			}
 			err := saveState(influxClient,
 				"test", "test", state.Time.AsTime(), state.Id,
@@ -181,7 +181,7 @@ func TestDataProcessingService(t *testing.T) {
 			&v1.BatchGetDeviceStateRequest{
 				DeviceClassId: 1,
 				Start:         timestamppb.New(now),
-				End:           timestamppb.New(now.Add(5 * time.Second)),
+				End:           timestamppb.New(now.Add(20 * time.Second)),
 			})
 		if err != nil {
 			t.Error(err)
@@ -318,7 +318,7 @@ func TestDataProcessingService(t *testing.T) {
 		now := time.Now()
 		tags := map[string]string{"deviceClassID": "1"}
 		for i, s := range states {
-			fields := map[string]interface{}{
+			fields := map[string]float64{
 				"voltage":     s.Voltage,
 				"current":     s.Current,
 				"temperature": s.Temperature,

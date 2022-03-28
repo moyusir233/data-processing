@@ -49,7 +49,12 @@ func (s *WarningDetectService) BatchGetDeviceStateInfo(ctx context.Context, req 
 	} else if req.Past != nil {
 		option.Past = req.Past.AsDuration()
 	}
-	option.Filter = req.Filter
+
+	if req.Filter != nil {
+		option.Filter = req.Filter
+	} else {
+		option.Filter = make(map[string]string)
+	}
 
 	states, err := s.warningDetectUsecase.BatchGetDeviceStateInfo(int(req.DeviceClassId), option)
 	if err != nil {
@@ -71,7 +76,12 @@ func (s *WarningDetectService) BatchGetWarning(ctx context.Context, req *pb.Batc
 	} else if req.Past != nil {
 		option.Past = req.Past.AsDuration()
 	}
-	option.Filter = req.Filter
+
+	if req.Filter != nil {
+		option.Filter = req.Filter
+	} else {
+		option.Filter = make(map[string]string)
+	}
 
 	warnings, err := s.warningDetectUsecase.BatchGetWarning(option)
 	if err != nil {

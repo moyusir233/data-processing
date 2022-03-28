@@ -157,6 +157,14 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 	ticker := time.NewTicker(every)
 	defer ticker.Stop()
 
+	// 避免访问nil map而实例化的空map
+	m := make(map[string]string)
+	// 查询用的option
+	option := &QueryOption{
+		Bucket: taskConf.TargetBucket,
+		Past:   every,
+		Filter: m,
+	}
 	for {
 		select {
 		case <-u.ctx.Done():
@@ -164,10 +172,7 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 		case <-ticker.C:
 			// 调用repo层函数进行查询
 			// TODO 考虑错误处理
-			tableResult, err := u.repo.BatchGetDeviceWarningDetectField(deviceClassID, field.Name, &QueryOption{
-				Bucket: taskConf.TargetBucket,
-				Past:   every,
-			})
+			tableResult, err := u.repo.BatchGetDeviceWarningDetectField(deviceClassID, field.Name, option)
 			if err != nil {
 				u.logger.Error(err)
 				continue
@@ -179,12 +184,11 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 				value := record.Value().(float64)
 				if field.Func(value) {
 					deviceID := record.Measurement()
-					deviceFieldName := record.ValueByKey("deviceFieldName").(string)
 					u.warningChannel <- &utilApi.Warning{
 						DeviceId:        deviceID,
 						DeviceClassId:   int32(deviceClassID),
-						DeviceFieldName: deviceFieldName,
-						WarningMessage:  fmt.Sprintf("%s %s warning", deviceID, deviceFieldName),
+						DeviceFieldName: field.Name,
+						WarningMessage:  fmt.Sprintf("%s %s warning", deviceID, field.Name),
 						Start:           timestamppb.New(record.ValueByKey("_start").(time.Time)),
 						End:             timestamppb.New(record.ValueByKey("_stop").(time.Time)),
 					}

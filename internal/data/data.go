@@ -24,7 +24,8 @@ type InfluxdbData struct {
 	// influxdb连接的客户端
 	influxdb2.Client
 	// 用户的组织信息
-	org string
+	org   string
+	orgId string
 }
 
 // NewRedisData 实例化redis数据库连接对象
@@ -69,8 +70,16 @@ func NewInfluxdbData(data *conf.Data) (*InfluxdbData, func(), error) {
 			500, "influxdb connect failed", "failed to connect the influxdb")
 	}
 
+	org, err := client.OrganizationsAPI().FindOrganizationByName(
+		context.Background(), data.Influxdb.Org)
+	if err != nil {
+		client.Close()
+		return nil, nil, err
+	}
+
 	return &InfluxdbData{
 		Client: client,
 		org:    data.Influxdb.Org,
+		orgId:  *org.Id,
 	}, func() { client.Close() }, nil
 }
