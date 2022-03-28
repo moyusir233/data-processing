@@ -10,4 +10,8 @@ data:
     masterName: mymaster
     poolSize: 5
     minIdleConns: 2
+  influxdb:
+    serverUrl: http://influxdb.test.svc.cluster.local:8086
+    authToken: test
+    org: test
   deviceStateRegisterInfo: /etc/app-configs/register_info.json

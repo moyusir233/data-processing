@@ -11,10 +11,11 @@ import (
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/transport/http"
-	"github.com/go-redis/redis/v8"
+	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	"google.golang.org/protobuf/proto"
 	"os"
 	"testing"
+	"time"
 )
 
 // 提供给测试程序使用的通用初始化函数
@@ -111,7 +112,7 @@ initClient:
 }
 
 // 保存设备配置的辅助函数
-func saveConfig(client *data.Data, deviceID string, config proto.Message) error {
+func saveConfig(client *data.RedisData, deviceID string, config proto.Message) error {
 	key := biz.GetDeviceConfigKey(&biz.DeviceGeneralInfo{
 		DeviceID:      deviceID,
 		DeviceClassID: 1,
@@ -125,55 +126,29 @@ func saveConfig(client *data.Data, deviceID string, config proto.Message) error 
 }
 
 // 保存设备状态的辅助函数
-func saveState(
-	client *data.Data,
-	deviceID string,
-	state proto.Message,
-	stamp int64,
-	fields map[string]float64) error {
-	cmders, err := client.TxPipelined(context.Background(), func(p redis.Pipeliner) error {
-		// 保存设备状态
-		stateKey := biz.GetDeviceStateKey(1)
-		marshal, err := proto.Marshal(state)
-		if err != nil {
-			return err
-		}
-		value := fmt.Sprintf("%x", marshal)
-		p.ZAdd(context.Background(), stateKey, &redis.Z{
-			Score:  float64(stamp),
-			Member: value,
-		})
+func saveState(client *data.InfluxdbData, org, bucket string, time time.Time,
+	deviceID string, fields map[string]interface{}, tags map[string]string) error {
+	writeAPI := client.WriteAPI(org, bucket)
 
-		// 保存设备字段
-		for k, v := range fields {
-			fieldKey := biz.GetDeviceStateFieldKey(&biz.DeviceGeneralInfo{
-				DeviceID:      deviceID,
-				DeviceClassID: 1,
-			}, k)
-			label := biz.GetDeviceStateFieldLabel(1, k)
-
-			var args []interface{}
-			args = append(args, "TS.ADD")
-			args = append(args, fieldKey, stamp, v)
-
-			// 当字段对应的ts未被创建时，以下设置的参数会被用于ts的创建
-
-			// 设置ts的标签
-			args = append(args, "LABELS", biz.WarningDetectFieldLabelName, label)
-			p.Do(context.Background(), args...)
-
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return err
+	point := write.NewPointWithMeasurement(deviceID).SetTime(time.UTC())
+	for k, v := range fields {
+		point.AddField(k, v)
 	}
-	for _, cmder := range cmders {
-		if cmder.Err() != nil {
-			return cmder.Err()
-		}
+	for k, v := range tags {
+		point.AddTag(k, v)
 	}
+	point.SortFields().SortTags()
+
+	writeAPI.WritePoint(point)
+	writeAPI.Flush()
 	return nil
+}
+
+// 清理influxdb的函数
+func clearInfluxdb(client *data.InfluxdbData, org, bucket string, deviceClassID int) {
+	deleteAPI := client.DeleteAPI()
+	start := time.Now().UTC().Add(-1 * time.Hour)
+	end := time.Now().UTC()
+	predicate := fmt.Sprintf(`deviceClassID="%d"`, deviceClassID)
+	deleteAPI.DeleteWithName(context.Background(), org, bucket, start, end, predicate)
 }

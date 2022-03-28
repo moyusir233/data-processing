@@ -58,10 +58,15 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/DeviceStateRegisterInfo'
-    /states/0/{page}/{count}:
+    /states/{device_class_id}:
         get:
-            operationId: WarningDetect_BatchGetDeviceState0
+            operationId: WarningDetect_BatchGetDeviceStateInfo
             parameters:
+                - name: device_class_id
+                  in: query
+                  description: 设备类别号
+                  schema:
+                    type: string
                 - name: start
                   in: query
                   description: 时间范围 开始时间
@@ -72,43 +77,14 @@ paths:
                   description: 结束时间
                   schema:
                     type: string
-                - name: page
+                - name: past
                   in: query
-                  description: 分页查询
+                  description: 相对时间范围查询，用于查询过去若干时间内的记录
                   schema:
                     type: string
-                - name: count
+                - name: filter
                   in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/BatchGetDeviceStateReply0'
-    /states/1/{page}/{count}:
-        get:
-            operationId: WarningDetect_BatchGetDeviceState1
-            parameters:
-                - name: start
-                  in: query
-                  description: 时间范围 开始时间
-                  schema:
-                    type: string
-                - name: end
-                  in: query
-                  description: 结束时间
-                  schema:
-                    type: string
-                - name: page
-                  in: query
-                  description: 分页查询
-                  schema:
-                    type: string
-                - name: count
-                  in: query
+                  description: 查询过滤的条件，可以针对_measurement、_field或tag进行过滤
                   schema:
                     type: string
             responses:
@@ -117,8 +93,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/BatchGetDeviceStateReply1'
-    /warnings/{page}/{count}:
+                                $ref: '#/components/schemas/BatchGetDeviceStateReply'
+    /warnings:
         get:
             summary: 分页查询用户的警告消息
             operationId: WarningDetect_BatchGetWarning
@@ -133,13 +109,14 @@ paths:
                   description: 结束时间
                   schema:
                     type: string
-                - name: page
+                - name: past
                   in: query
-                  description: 分页查询
+                  description: 相对时间范围查询，用于查询过去若干时间内的记录
                   schema:
                     type: string
-                - name: count
+                - name: filter
                   in: query
+                  description: 查询过滤的条件，可以针对_measurement、_field或tag进行过滤
                   schema:
                     type: string
             responses:
@@ -151,25 +128,20 @@ paths:
                                 $ref: '#/components/schemas/BatchGetWarningReply'
 components:
     schemas:
-        BatchGetDeviceStateReply0:
+        BatchGetDeviceStateReply:
             properties:
                 states:
                     type: array
                     items:
-                        $ref: '#/components/schemas/DeviceState0'
-        BatchGetDeviceStateReply1:
-            properties:
-                states:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/DeviceState1'
+                        $ref: '#/components/schemas/DeviceState'
+            description: 设备状态信息批量查询响应
         BatchGetWarningReply:
             properties:
                 warnings:
                     type: array
                     items:
                         $ref: '#/components/schemas/Warning'
-            description: 警告消息分页查询相应
+            description: 警告消息批量查询响应
         DeviceConfig0:
             properties:
                 id:
@@ -182,38 +154,18 @@ components:
                     type: string
                 status:
                     type: boolean
-        DeviceState0:
+        DeviceState:
             properties:
-                id:
+                device_class_id:
+                    type: integer
+                    format: int32
+                device_id:
                     type: string
                 time:
                     type: string
                     format: RFC3339
-                voltage:
-                    type: number
-                    format: double
-                current:
-                    type: number
-                    format: double
-                temperature:
-                    type: number
-                    format: double
-        DeviceState1:
-            properties:
-                id:
-                    type: string
-                time:
-                    type: string
-                    format: RFC3339
-                voltage:
-                    type: number
-                    format: double
-                current:
-                    type: number
-                    format: double
-                temperature:
-                    type: number
-                    format: double
+                fields:
+                    $ref: '#/components/schemas/FieldsEntry'
         DeviceStateRegisterInfo:
             properties:
                 fields:

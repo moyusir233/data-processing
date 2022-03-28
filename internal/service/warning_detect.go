@@ -20,9 +20,12 @@ type WarningDetectService struct {
 }
 
 func NewWarningDetectService(wu *biz.WarningDetectUsecase, logger log.Logger) (
-	*WarningDetectService, func()) {
+	*WarningDetectService, func(), error) {
 	// 开启预警检测
-	wu.StartDetection()
+	err := wu.StartDetection()
+	if err != nil {
+		return nil, nil, err
+	}
 
 	// 返回关闭预警检测的清理函数
 	return &WarningDetectService{
@@ -31,109 +34,45 @@ func NewWarningDetectService(wu *biz.WarningDetectUsecase, logger log.Logger) (
 			logger:               log.NewHelper(logger),
 		}, func() {
 			wu.CloseDetection()
+		}, nil
+}
+
+func (s *WarningDetectService) BatchGetDeviceStateInfo(ctx context.Context, req *pb.BatchGetDeviceStateRequest) (*pb.BatchGetDeviceStateReply, error) {
+	option := new(biz.QueryOption)
+	if req.Start != nil {
+		start := req.Start.AsTime()
+		option.Start = &start
+		if req.End != nil {
+			stop := req.End.AsTime()
+			option.Stop = &stop
 		}
-}
-
-func (s *WarningDetectService) BatchGetDeviceState0(ctx context.Context, req *pb.BatchGetDeviceStateRequest) (*pb.BatchGetDeviceStateReply0, error) {
-	// 代码注入deviceClassID
-	deviceClassID := 0
-
-	// 构造查询选项
-	var begin, end int64
-	if req.Start != nil {
-		begin = req.Start.AsTime().Unix()
-	} else {
-		begin = 0
+	} else if req.Past != nil {
+		option.Past = req.Past.AsDuration()
 	}
-	if req.End != nil {
-		end = req.End.AsTime().Unix()
-	} else {
-		end = 0
-	}
+	option.Filter = req.Filter
 
-	option := &biz.QueryOption{
-		Begin:  begin,
-		End:    end,
-		Offset: (req.Page - 1) * req.Count,
-		Count:  req.Count,
-	}
-
-	// 调用biz层的查询函数
-	states, err := s.warningDetectUsecase.BatchGetDeviceStateInfo(deviceClassID, option, new(pb.DeviceState0))
+	states, err := s.warningDetectUsecase.BatchGetDeviceStateInfo(int(req.DeviceClassId), option)
 	if err != nil {
 		return nil, err
 	}
 
-	reply := new(pb.BatchGetDeviceStateReply0)
-	for _, s := range states {
-		// 将接口类型向下转型
-		reply.States = append(reply.States, s.(*pb.DeviceState0))
-	}
-
-	return reply, nil
-}
-
-func (s *WarningDetectService) BatchGetDeviceState1(ctx context.Context, req *pb.BatchGetDeviceStateRequest) (*pb.BatchGetDeviceStateReply1, error) {
-	// 代码注入deviceClassID
-	deviceClassID := 1
-
-	// 构造查询选项
-	var begin, end int64
-	if req.Start != nil {
-		begin = req.Start.AsTime().Unix()
-	} else {
-		begin = 0
-	}
-	if req.End != nil {
-		end = req.End.AsTime().Unix()
-	} else {
-		end = 0
-	}
-
-	option := &biz.QueryOption{
-		Begin:  begin,
-		End:    end,
-		Offset: (req.Page - 1) * req.Count,
-		Count:  req.Count,
-	}
-
-	// 调用biz层的查询函数
-	states, err := s.warningDetectUsecase.BatchGetDeviceStateInfo(deviceClassID, option, new(pb.DeviceState1))
-	if err != nil {
-		return nil, err
-	}
-
-	reply := new(pb.BatchGetDeviceStateReply1)
-	for _, s := range states {
-		// 将接口类型向下转型
-		reply.States = append(reply.States, s.(*pb.DeviceState1))
-	}
-
-	return reply, nil
+	return &pb.BatchGetDeviceStateReply{States: states}, nil
 }
 
 func (s *WarningDetectService) BatchGetWarning(ctx context.Context, req *pb.BatchGetWarningRequest) (*pb.BatchGetWarningReply, error) {
-	// 构造查询选项
-	var begin, end int64
+	option := new(biz.QueryOption)
 	if req.Start != nil {
-		begin = req.Start.AsTime().Unix()
-	} else {
-		begin = 0
+		start := req.Start.AsTime()
+		option.Start = &start
+		if req.End != nil {
+			stop := req.End.AsTime()
+			option.Stop = &stop
+		}
+	} else if req.Past != nil {
+		option.Past = req.Past.AsDuration()
 	}
-	if req.End != nil {
-		end = req.End.AsTime().Unix()
-	} else {
-		end = 0
-	}
+	option.Filter = req.Filter
 
-	option := &biz.QueryOption{
-		Begin:  begin,
-		End:    end,
-		Offset: (req.Page - 1) * req.Count,
-		Count:  req.Count,
-	}
-
-	// 调用biz层的查询函数
 	warnings, err := s.warningDetectUsecase.BatchGetWarning(option)
 	if err != nil {
 		return nil, err

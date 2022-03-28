@@ -3,14 +3,17 @@ package biz
 import (
 	"container/list"
 	"context"
+	"fmt"
+	v1 "gitee.com/moyusir/data-processing/api/dataProcessing/v1"
+	"gitee.com/moyusir/data-processing/internal/conf"
 	utilApi "gitee.com/moyusir/util/api/util/v1"
 	"gitee.com/moyusir/util/parser"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/gorilla/websocket"
+	"github.com/influxdata/influxdb-client-go/v2/api"
+	"github.com/influxdata/influxdb-client-go/v2/domain"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"strings"
 	"sync"
 	"time"
 )
@@ -40,39 +43,49 @@ type WarningDetectUsecase struct {
 }
 
 type WarningDetectRepo interface {
-	// BatchGetDeviceStateInfo 批量查询设备状态信息，返回保存在数据库中设备状态的二进制信息
-	BatchGetDeviceStateInfo(key string, option *QueryOption) ([][]byte, error)
-	// BatchGetDeviceWarningDetectField 批量查询具有指定label的TS中保存的预警字段值信息
-	BatchGetDeviceWarningDetectField(label string, option *TSQueryOption) ([]TsQueryResult, error)
+	// BatchGetDeviceStateInfo 批量查询某一类设备的状态信息
+	BatchGetDeviceStateInfo(deviceClassID int, option *QueryOption) ([]*v1.DeviceState, error)
+	// BatchGetDeviceWarningDetectField 批量查询某一类设备某个字段的信息，用于预警检测
+	BatchGetDeviceWarningDetectField(deviceClassID int, fieldName string, option *QueryOption) (*api.QueryTableResult, error)
 	// GetWarningMessage 查询当前存储在数据库中的警告信息
-	GetWarningMessage(key string, option *QueryOption) ([][]byte, error)
+	GetWarningMessage(option *QueryOption) ([]*utilApi.Warning, error)
 	// SaveWarningMessage 保存警告信息
-	SaveWarningMessage(key string, timestamp int64, value []byte) error
+	SaveWarningMessage(warnings ...*utilApi.Warning) error
+	// RunWarningDetectTask 依据预警字段注册的预警规则，创建并运行下采样设备状态信息数据的task
+	RunWarningDetectTask(config *WarningDetectTaskConfig) (*domain.Run, error)
+	// StopWarningDetectTask 关闭指定task的运行
+	StopWarningDetectTask(run *domain.Run) error
 }
 
-// QueryOption 查询ZSet时可以附加的查询参数
+// WarningDetectTaskConfig 创建负责下采样设备状态信息的task的配置信息
+type WarningDetectTaskConfig struct {
+	// task的唯一标识名
+	Name string
+	// 设备的类别号
+	DeviceClassID int
+	// 设备的字段名，通过设备号和字段名确定需要进行下采样的设备字段
+	FieldName string
+	// 下采样的时间窗口大小
+	Every time.Duration
+	// 数据聚合类型
+	AggregateType utilApi.DeviceStateRegisterInfo_AggregationOperation
+	// 下采样的数据需要写入的目标bucket
+	TargetBucket string
+}
+
+// QueryOption 查询influxdb时可以附加的参数
 type QueryOption struct {
-	// 查询的时间范围，以时间戳表示
-	Begin, End int64
-	// 偏移量和记录数限制
-	Offset, Count int64
-}
-
-// TSQueryOption 批量查询TS时可以附加的查询参数
-type TSQueryOption struct {
-	// 查询的时间范围，以时间戳表示
-	Begin, End int64
-	// 查询的聚合类型
-	AggregationType string
-	// 聚合查询时使用的时间间隔，以毫秒为单位
-	TimeBucket time.Duration
-}
-
-// TsQueryResult Ts查询结果的封装
-type TsQueryResult struct {
-	Key       string
-	Value     float64
-	Timestamp int64
+	// 查询的桶
+	Bucket string
+	// 查询的时间范围，绝对的时间值
+	Start, Stop *time.Time
+	// 利用相对于now()的相对时间值进行查询，比如查询过去5m到现在的所有时间序列数据，
+	// 当绝对的时间查询和相对的时间查询参数都存在时优先使用相对的时间查询
+	Past time.Duration
+	// 查询时的过滤条件，可以指定tag、_measurement、_field
+	Filter map[string]string
+	// 依据指定的列名进行groupBy操作，用于reshape查询结果
+	GroupBy []string
 }
 
 // 链表节点，保存mutex、channel以及状态标志
@@ -116,57 +129,68 @@ func NewWarningDetectUsecase(repo UnionRepo, registerInfo []utilApi.DeviceStateR
 	return w, nil
 }
 
-// 负责对某个预警字段进行预警检测
-func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.WarningDetectField) {
-	// 获得预警字段对应的标签
-	label := GetDeviceStateFieldLabel(deviceClassID, field.Name)
-
-	// 配置查询的默认选项
-	option := &TSQueryOption{
-		Begin:           0,
-		End:             0,
-		AggregationType: strings.ToLower(field.Rule.AggregationOperation.String()),
-		TimeBucket:      field.Rule.Duration.AsDuration(),
+// 负责对某个预警字段进行预警检测,start用于标志成功启动
+func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.WarningDetectField, start chan<- struct{}) error {
+	// 启动协程相应的下采样task
+	// 启动下采样的task
+	// 每个用户拥有三个桶:<username>、<username-warnings>、<username-warning_detect>
+	// 分别保存用户设备状态信息、警告信息、下采样的设备状态信息
+	every := field.Rule.Duration.AsDuration()
+	taskConf := &WarningDetectTaskConfig{
+		Name:          fmt.Sprintf("%s-%d-%s-task", conf.Username, deviceClassID, field.Name),
+		DeviceClassID: deviceClassID,
+		FieldName:     field.Name,
+		Every:         every,
+		AggregateType: field.Rule.AggregationOperation,
+		TargetBucket:  fmt.Sprintf("%s-warning_detect", conf.Username),
 	}
+	run, err := u.repo.RunWarningDetectTask(taskConf)
+	if err != nil {
+		return err
+	}
+	defer u.repo.StopWarningDetectTask(run)
+
+	// 发出任务启动成功的信号
+	start <- struct{}{}
 
 	// 控制查询间隔的定时器
-	ticker := time.NewTicker(option.TimeBucket)
+	ticker := time.NewTicker(every)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-u.ctx.Done():
-			return
+			return nil
 		case <-ticker.C:
-			// 配置批量查询TS的参数
-			now := time.Now()
-			// 为了查询[begin,end)这个时间区间，让end减一毫秒从而不包含now这个时间点
-			begin := now.Add(-1 * option.TimeBucket)
-			end := now.Add(-1 * time.Millisecond)
-			option.Begin = begin.UnixMilli()
-			option.End = end.UnixMilli()
-
 			// 调用repo层函数进行查询
 			// TODO 考虑错误处理
-			detectFields, err := u.repo.BatchGetDeviceWarningDetectField(label, option)
+			tableResult, err := u.repo.BatchGetDeviceWarningDetectField(deviceClassID, field.Name, &QueryOption{
+				Bucket: taskConf.TargetBucket,
+				Past:   every,
+			})
 			if err != nil {
 				u.logger.Error(err)
 				continue
 			}
 
 			// 依据解析注册信息得到的预警规则进行预警检测
-			for _, f := range detectFields {
-				if field.Func(f.Value) {
-					// 将警告消息发送到存放警告信息的channel中
+			for tableResult.Next() {
+				record := tableResult.Record()
+				value := record.Value().(float64)
+				if field.Func(value) {
+					deviceID := record.Measurement()
+					deviceFieldName := record.ValueByKey("deviceFieldName").(string)
 					u.warningChannel <- &utilApi.Warning{
-						DeviceId:        GetDeviceIDFromDeviceStateFieldKey(f.Key),
-						DeviceFieldName: field.Name,
-						WarningRule:     field.Rule,
-						Start:           timestamppb.New(begin),
-						End:             timestamppb.New(end),
+						DeviceId:        deviceID,
+						DeviceClassId:   int32(deviceClassID),
+						DeviceFieldName: deviceFieldName,
+						WarningMessage:  fmt.Sprintf("%s %s warning", deviceID, deviceFieldName),
+						Start:           timestamppb.New(record.ValueByKey("_start").(time.Time)),
+						End:             timestamppb.New(record.ValueByKey("_stop").(time.Time)),
 					}
 				}
 			}
+			tableResult.Close()
 		}
 	}
 }
@@ -174,9 +198,6 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 // 负责保存警告信息到数据库以及将channel的警告消息扇出到warningFanOutChannels的channel中
 // 并负责检测链表的状态，及时将非活跃状态的节点放回池中
 func (u *WarningDetectUsecase) warningFanOut() {
-	// 获得警告消息保存的redis key
-	warningsSaveKey := GetWarningsSaveKey()
-
 	for {
 		select {
 		case <-u.ctx.Done():
@@ -184,12 +205,9 @@ func (u *WarningDetectUsecase) warningFanOut() {
 		case warning := <-u.warningChannel:
 			// 首先保存警告消息
 			// TODO 考虑是否需要推送序列化失败或者保存失败的警告消息
-			marshal, err := proto.Marshal(warning)
-			if err == nil {
-				err := u.repo.SaveWarningMessage(warningsSaveKey, time.Now().UnixMilli(), marshal)
-				if err != nil {
-					u.logger.Error(err)
-				}
+			err := u.repo.SaveWarningMessage(warning)
+			if err != nil {
+				u.logger.Error(err)
 			}
 
 			// 利用了信号量，避免同时进行链表添加节点和检索链表的行为
@@ -245,8 +263,12 @@ func (u *WarningDetectUsecase) warningPush(conn *websocket.Conn, node *warningPu
 }
 
 // StartDetection 开启预警检测
-func (u *WarningDetectUsecase) StartDetection() {
+func (u *WarningDetectUsecase) StartDetection() error {
 	// 依据注册信息，为每一类设备的每一个预警字段，开启预警检测的协程
+	// 两个chan用于确定协程正确启动
+	startDone := make(chan struct{}, len(u.parser.Info))
+	startError := make(chan error, len(u.parser.Info))
+
 	for i := 0; i < len(u.parser.Info); i++ {
 		fields := u.parser.GetWarningDetectFields(i)
 		for j := 0; j < len(fields); j++ {
@@ -254,9 +276,21 @@ func (u *WarningDetectUsecase) StartDetection() {
 			// 协程中使用，否则可能会造成数组越界的panic
 			deviceClassID, fieldIndex := i, j
 			u.warningDetectGroup.Go(func() error {
-				u.warningDetect(deviceClassID, &(fields[fieldIndex]))
+				err := u.warningDetect(deviceClassID, &(fields[fieldIndex]), startDone)
+				if err != nil {
+					startError <- err
+				}
 				return nil
 			})
+		}
+	}
+
+	// 等待预警检测的协程都启动完毕
+	for i := 0; i < len(u.parser.Info); i++ {
+		select {
+		case <-startDone:
+		case err := <-startError:
+			return err
 		}
 	}
 
@@ -265,6 +299,8 @@ func (u *WarningDetectUsecase) StartDetection() {
 		u.warningFanOut()
 		return nil
 	})
+
+	return nil
 }
 
 // CloseDetection 关闭预警检测
@@ -293,58 +329,22 @@ func (u *WarningDetectUsecase) AddWarningPushConnection(conn *websocket.Conn) {
 	})
 }
 
-// BatchGetDeviceStateInfo 批量查询设备状态信息，并依据传入的proto message模板对二进制信息进行反序列化
-// 注意函数执行后stateTemplate中会填充有查询得到的数据
+// BatchGetDeviceStateInfo 批量查询设备状态信息
 func (u *WarningDetectUsecase) BatchGetDeviceStateInfo(
 	deviceClassID int,
-	option *QueryOption,
-	stateTemplate proto.Message) ([]proto.Message, error) {
-	// 以<用户id>:device_state:<设备类别号>为键，在zset中保存
-	// 以timestamp为score，以设备状态二进制protobuf信息为value的键值对
-
-	// 获得redis key
-	key := GetDeviceStateKey(deviceClassID)
-
-	// 调用repo层函数，查询设备状态信息
-	stateInfo, err := u.repo.BatchGetDeviceStateInfo(key, option)
-	if err != nil {
-		return nil, err
+	option *QueryOption) ([]*v1.DeviceState, error) {
+	// 填充查询的参数，并将关于deviceID的filter转换为对_measurement的filter
+	option.Bucket = conf.Username
+	if deviceID, ok := option.Filter["deviceID"]; ok {
+		delete(option.Filter, "deviceID")
+		option.Filter["_measurement"] = deviceID
 	}
-
-	states := make([]proto.Message, 0, len(stateInfo))
-	for _, info := range stateInfo {
-		err := proto.Unmarshal(info, stateTemplate)
-		if err != nil {
-			return nil, err
-		}
-		states = append(states, proto.Clone(stateTemplate))
-	}
-
-	return states, nil
+	return u.repo.BatchGetDeviceStateInfo(deviceClassID, option)
 }
 
 // BatchGetWarning 批量查询警告信息
 func (u *WarningDetectUsecase) BatchGetWarning(option *QueryOption) ([]*utilApi.Warning, error) {
-	// 用户的警告消息存放在以<用户id>:warning为key的ZSet中，
-	// 并以timestamp为field，以警告消息的序列化二进制数据为value存储警告消息
-
-	// 调用repo层函数进行查询
-	warnings, err := u.repo.GetWarningMessage(GetWarningsSaveKey(), option)
-	if err != nil {
-		return nil, err
-	}
-
-	// 将二进制数据反序列化
-	result := make([]*utilApi.Warning, len(warnings))
-	for i, warning := range warnings {
-		result[i] = new(utilApi.Warning)
-		err := proto.Unmarshal(warning, result[i])
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return result, nil
+	return u.repo.GetWarningMessage(option)
 }
 
 // GetDeviceStateRegisterInfo 查询关于设备状态，包括预警规则在内的注册信息

@@ -19,21 +19,19 @@ var _ = binding.EncodeURL
 const _ = http.SupportPackageIsVersion1
 
 type WarningDetectHTTPServer interface {
-	BatchGetDeviceState0(context.Context, *BatchGetDeviceStateRequest) (*BatchGetDeviceStateReply0, error)
-	BatchGetDeviceState1(context.Context, *BatchGetDeviceStateRequest) (*BatchGetDeviceStateReply1, error)
+	BatchGetDeviceStateInfo(context.Context, *BatchGetDeviceStateRequest) (*BatchGetDeviceStateReply, error)
 	BatchGetWarning(context.Context, *BatchGetWarningRequest) (*BatchGetWarningReply, error)
 	GetDeviceStateRegisterInfo(context.Context, *GetDeviceStateRegisterInfoRequest) (*v1.DeviceStateRegisterInfo, error)
 }
 
 func RegisterWarningDetectHTTPServer(s *http.Server, srv WarningDetectHTTPServer) {
 	r := s.Route("/")
-	r.GET("/states/0/{page}/{count}", _WarningDetect_BatchGetDeviceState00_HTTP_Handler(srv))
-	r.GET("/states/1/{page}/{count}", _WarningDetect_BatchGetDeviceState10_HTTP_Handler(srv))
-	r.GET("/warnings/{page}/{count}", _WarningDetect_BatchGetWarning0_HTTP_Handler(srv))
+	r.GET("/states/{device_class_id}", _WarningDetect_BatchGetDeviceStateInfo0_HTTP_Handler(srv))
+	r.GET("/warnings", _WarningDetect_BatchGetWarning0_HTTP_Handler(srv))
 	r.GET("/register-info/states/{device_class_id}", _WarningDetect_GetDeviceStateRegisterInfo0_HTTP_Handler(srv))
 }
 
-func _WarningDetect_BatchGetDeviceState00_HTTP_Handler(srv WarningDetectHTTPServer) func(ctx http.Context) error {
+func _WarningDetect_BatchGetDeviceStateInfo0_HTTP_Handler(srv WarningDetectHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in BatchGetDeviceStateRequest
 		if err := ctx.BindQuery(&in); err != nil {
@@ -42,37 +40,15 @@ func _WarningDetect_BatchGetDeviceState00_HTTP_Handler(srv WarningDetectHTTPServ
 		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, "/api.dataProcessing.v1.WarningDetect/BatchGetDeviceState0")
+		http.SetOperation(ctx, "/api.dataProcessing.v1.WarningDetect/BatchGetDeviceStateInfo")
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.BatchGetDeviceState0(ctx, req.(*BatchGetDeviceStateRequest))
+			return srv.BatchGetDeviceStateInfo(ctx, req.(*BatchGetDeviceStateRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*BatchGetDeviceStateReply0)
-		return ctx.Result(200, reply)
-	}
-}
-
-func _WarningDetect_BatchGetDeviceState10_HTTP_Handler(srv WarningDetectHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in BatchGetDeviceStateRequest
-		if err := ctx.BindQuery(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindVars(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, "/api.dataProcessing.v1.WarningDetect/BatchGetDeviceState1")
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.BatchGetDeviceState1(ctx, req.(*BatchGetDeviceStateRequest))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*BatchGetDeviceStateReply1)
+		reply := out.(*BatchGetDeviceStateReply)
 		return ctx.Result(200, reply)
 	}
 }
@@ -81,9 +57,6 @@ func _WarningDetect_BatchGetWarning0_HTTP_Handler(srv WarningDetectHTTPServer) f
 	return func(ctx http.Context) error {
 		var in BatchGetWarningRequest
 		if err := ctx.BindQuery(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, "/api.dataProcessing.v1.WarningDetect/BatchGetWarning")
@@ -122,8 +95,7 @@ func _WarningDetect_GetDeviceStateRegisterInfo0_HTTP_Handler(srv WarningDetectHT
 }
 
 type WarningDetectHTTPClient interface {
-	BatchGetDeviceState0(ctx context.Context, req *BatchGetDeviceStateRequest, opts ...http.CallOption) (rsp *BatchGetDeviceStateReply0, err error)
-	BatchGetDeviceState1(ctx context.Context, req *BatchGetDeviceStateRequest, opts ...http.CallOption) (rsp *BatchGetDeviceStateReply1, err error)
+	BatchGetDeviceStateInfo(ctx context.Context, req *BatchGetDeviceStateRequest, opts ...http.CallOption) (rsp *BatchGetDeviceStateReply, err error)
 	BatchGetWarning(ctx context.Context, req *BatchGetWarningRequest, opts ...http.CallOption) (rsp *BatchGetWarningReply, err error)
 	GetDeviceStateRegisterInfo(ctx context.Context, req *GetDeviceStateRegisterInfoRequest, opts ...http.CallOption) (rsp *v1.DeviceStateRegisterInfo, err error)
 }
@@ -136,24 +108,11 @@ func NewWarningDetectHTTPClient(client *http.Client) WarningDetectHTTPClient {
 	return &WarningDetectHTTPClientImpl{client}
 }
 
-func (c *WarningDetectHTTPClientImpl) BatchGetDeviceState0(ctx context.Context, in *BatchGetDeviceStateRequest, opts ...http.CallOption) (*BatchGetDeviceStateReply0, error) {
-	var out BatchGetDeviceStateReply0
-	pattern := "/states/0/{page}/{count}"
+func (c *WarningDetectHTTPClientImpl) BatchGetDeviceStateInfo(ctx context.Context, in *BatchGetDeviceStateRequest, opts ...http.CallOption) (*BatchGetDeviceStateReply, error) {
+	var out BatchGetDeviceStateReply
+	pattern := "/states/{device_class_id}"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation("/api.dataProcessing.v1.WarningDetect/BatchGetDeviceState0"))
-	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, err
-}
-
-func (c *WarningDetectHTTPClientImpl) BatchGetDeviceState1(ctx context.Context, in *BatchGetDeviceStateRequest, opts ...http.CallOption) (*BatchGetDeviceStateReply1, error) {
-	var out BatchGetDeviceStateReply1
-	pattern := "/states/1/{page}/{count}"
-	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation("/api.dataProcessing.v1.WarningDetect/BatchGetDeviceState1"))
+	opts = append(opts, http.Operation("/api.dataProcessing.v1.WarningDetect/BatchGetDeviceStateInfo"))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
@@ -164,7 +123,7 @@ func (c *WarningDetectHTTPClientImpl) BatchGetDeviceState1(ctx context.Context, 
 
 func (c *WarningDetectHTTPClientImpl) BatchGetWarning(ctx context.Context, in *BatchGetWarningRequest, opts ...http.CallOption) (*BatchGetWarningReply, error) {
 	var out BatchGetWarningReply
-	pattern := "/warnings/{page}/{count}"
+	pattern := "/warnings"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation("/api.dataProcessing.v1.WarningDetect/BatchGetWarning"))
 	opts = append(opts, http.PathTemplate(pattern))

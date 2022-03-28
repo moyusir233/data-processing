@@ -7,12 +7,10 @@ import (
 	v1 "gitee.com/moyusir/data-processing/api/dataProcessing/v1"
 	"gitee.com/moyusir/data-processing/internal/data"
 	utilApi "gitee.com/moyusir/util/api/util/v1"
-	"github.com/go-kratos/kratos/v2/log"
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -65,7 +63,7 @@ func TestDataProcessingService(t *testing.T) {
 				// 定义字段temperature的预警规则为1秒内的最小值不等于100
 				{
 					Name: "temperature",
-					Type: utilApi.Type_DOUBLE,
+					Type: utilApi.Type_INT64,
 					WarningRule: &utilApi.DeviceStateRegisterInfo_WarningRule{
 						CmpRule: &utilApi.DeviceStateRegisterInfo_CmpRule{
 							Cmp: utilApi.DeviceStateRegisterInfo_EQ,
@@ -86,7 +84,7 @@ func TestDataProcessingService(t *testing.T) {
 	}
 
 	// 初始化用于写入测试用例信息的redis客户端
-	redisClient, cleanup, err := data.NewData(bootstrap.Data, log.NewStdLogger(os.Stdout))
+	redisClient, cleanup, err := data.NewRedisData(bootstrap.Data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,6 +92,16 @@ func TestDataProcessingService(t *testing.T) {
 		// 测试结束时清空数据库
 		redisClient.FlushDB(context.Background())
 		cleanup()
+	})
+
+	// 初始化用于写入测试用例信息的influx客户端
+	influxClient, cleanup2, err := data.NewInfluxdbData(bootstrap.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		clearInfluxdb(influxClient, "test", "test", 1)
+		cleanup2()
 	})
 
 	// 启动服务器，并实例化测试所需的http客户端
@@ -140,22 +148,27 @@ func TestDataProcessingService(t *testing.T) {
 	t.Run("Test_BatchGetDeviceState", func(t *testing.T) {
 		// 初始化测试用例
 		var states []v1.DeviceState1
+		tags := map[string]string{"deviceClassID": "1"}
+		now := time.Now()
 		for i := 0; i < 5; i++ {
 			// 为了不影响之后的预警检测测试，这里写入不违反注册信息处填写的预警规则的设备状态
 			state := v1.DeviceState1{
 				Id: fmt.Sprintf("%s%d", t.Name(), i),
 				// 注意这里写入的设备状态的时间应该为递增顺序，便于后续批量查询的检查
-				Time:        timestamppb.New(time.Now().Add(time.Duration(i) * time.Second)),
+				Time:        timestamppb.New(now.Add(time.Duration(i) * time.Second)),
 				Voltage:     0,
 				Current:     1000,
 				Temperature: 0,
 			}
-			fields := map[string]float64{
+			fields := map[string]interface{}{
 				//"voltage":     state.Voltage,
 				//"current":     state.Current,
 				//"temperature": state.Temperature,
 			}
-			err := saveState(redisClient, state.Id, &state, state.Time.AsTime().UnixMilli(), fields)
+			err := saveState(influxClient,
+				"test", "test", state.Time.AsTime(), state.Id,
+				fields, tags,
+			)
 			if err != nil {
 				t.Fatal(err)
 				return
@@ -164,15 +177,12 @@ func TestDataProcessingService(t *testing.T) {
 		}
 
 		// 执行查询，并检查查询结果
-		reply, err := warningDetectHTTPClient.BatchGetDeviceState1(
-			context.Background(),
+		reply, err := warningDetectHTTPClient.BatchGetDeviceStateInfo(context.Background(),
 			&v1.BatchGetDeviceStateRequest{
-				Start: nil,
-				End:   nil,
-				Page:  0,
-				Count: 0,
-			},
-		)
+				DeviceClassId: 1,
+				Start:         timestamppb.New(now),
+				End:           timestamppb.New(now.Add(5 * time.Second)),
+			})
 		if err != nil {
 			t.Error(err)
 			return
@@ -306,14 +316,17 @@ func TestDataProcessingService(t *testing.T) {
 
 		// 将违反预警规则的设备状态信息写入
 		now := time.Now()
+		tags := map[string]string{"deviceClassID": "1"}
 		for i, s := range states {
-			fields := map[string]float64{
+			fields := map[string]interface{}{
 				"voltage":     s.Voltage,
 				"current":     s.Current,
 				"temperature": s.Temperature,
 			}
 			s.Time = timestamppb.New(now.Add(time.Duration(i+5) * time.Second))
-			err := saveState(redisClient, s.Id, &s, s.Time.AsTime().UnixMilli(), fields)
+			err := saveState(influxClient, "test", "test",
+				s.Time.AsTime(), s.Id, fields, tags,
+			)
 			if err != nil {
 				return
 			}
@@ -363,10 +376,7 @@ func TestDataProcessingService(t *testing.T) {
 		reply, err := warningDetectHTTPClient.BatchGetWarning(
 			context.Background(),
 			&v1.BatchGetWarningRequest{
-				Start: nil,
-				End:   nil,
-				Page:  0,
-				Count: 0,
+				Past: durationpb.New(5 * time.Minute),
 			},
 		)
 		if err != nil {

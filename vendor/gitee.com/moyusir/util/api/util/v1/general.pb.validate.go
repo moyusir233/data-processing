@@ -70,7 +70,7 @@ func (m *User) validate(all bool) error {
 	if !_User_Id_Pattern.MatchString(m.GetId()) {
 		err := UserValidationError{
 			field:  "Id",
-			reason: "value does not match regex pattern \"^([0-9A-Za-z_]+)$\"",
+			reason: "value does not match regex pattern \"^([0-9a-z_]+)$\"",
 		}
 		if !all {
 			return err
@@ -177,7 +177,7 @@ var _ interface {
 	ErrorName() string
 } = UserValidationError{}
 
-var _User_Id_Pattern = regexp.MustCompile("^([0-9A-Za-z_]+)$")
+var _User_Id_Pattern = regexp.MustCompile("^([0-9a-z_]+)$")
 
 var _User_Password_Pattern = regexp.MustCompile("^([a-zA-Z0-9]+)$")
 
@@ -496,6 +496,17 @@ func (m *Warning) validate(all bool) error {
 
 	var errors []error
 
+	if m.GetDeviceClassId() < 0 {
+		err := WarningValidationError{
+			field:  "DeviceClassId",
+			reason: "value must be greater than or equal to 0",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
 	if utf8.RuneCountInString(m.GetDeviceId()) < 1 {
 		err := WarningValidationError{
 			field:  "DeviceId",
@@ -518,44 +529,15 @@ func (m *Warning) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
-	if m.GetWarningRule() == nil {
+	if utf8.RuneCountInString(m.GetWarningMessage()) < 1 {
 		err := WarningValidationError{
-			field:  "WarningRule",
-			reason: "value is required",
+			field:  "WarningMessage",
+			reason: "value length must be at least 1 runes",
 		}
 		if !all {
 			return err
 		}
 		errors = append(errors, err)
-	}
-
-	if all {
-		switch v := interface{}(m.GetWarningRule()).(type) {
-		case interface{ ValidateAll() error }:
-			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, WarningValidationError{
-					field:  "WarningRule",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		case interface{ Validate() error }:
-			if err := v.Validate(); err != nil {
-				errors = append(errors, WarningValidationError{
-					field:  "WarningRule",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		}
-	} else if v, ok := interface{}(m.GetWarningRule()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return WarningValidationError{
-				field:  "WarningRule",
-				reason: "embedded message failed validation",
-				cause:  err,
-			}
-		}
 	}
 
 	if m.GetStart() == nil {
@@ -938,7 +920,7 @@ func (m *DeviceConfigRegisterInfo_Field) validate(all bool) error {
 	if !_DeviceConfigRegisterInfo_Field_Name_Pattern.MatchString(m.GetName()) {
 		err := DeviceConfigRegisterInfo_FieldValidationError{
 			field:  "Name",
-			reason: "value does not match regex pattern \"^([0-9A-Za-z_]+)$\"",
+			reason: "value does not match regex pattern \"^([0-9a-z_]+)$\"",
 		}
 		if !all {
 			return err
@@ -1029,7 +1011,7 @@ var _ interface {
 	ErrorName() string
 } = DeviceConfigRegisterInfo_FieldValidationError{}
 
-var _DeviceConfigRegisterInfo_Field_Name_Pattern = regexp.MustCompile("^([0-9A-Za-z_]+)$")
+var _DeviceConfigRegisterInfo_Field_Name_Pattern = regexp.MustCompile("^([0-9a-z_]+)$")
 
 // Validate checks the field values on DeviceStateRegisterInfo_CmpRule with the
 // rules defined in the proto definition for this message. If any rules are
@@ -1343,7 +1325,7 @@ func (m *DeviceStateRegisterInfo_Field) validate(all bool) error {
 	if !_DeviceStateRegisterInfo_Field_Name_Pattern.MatchString(m.GetName()) {
 		err := DeviceStateRegisterInfo_FieldValidationError{
 			field:  "Name",
-			reason: "value does not match regex pattern \"^([0-9A-Za-z_]+)$\"",
+			reason: "value does not match regex pattern \"^([0-9a-z_]+)$\"",
 		}
 		if !all {
 			return err
@@ -1463,4 +1445,4 @@ var _ interface {
 	ErrorName() string
 } = DeviceStateRegisterInfo_FieldValidationError{}
 
-var _DeviceStateRegisterInfo_Field_Name_Pattern = regexp.MustCompile("^([0-9A-Za-z_]+)$")
+var _DeviceStateRegisterInfo_Field_Name_Pattern = regexp.MustCompile("^([0-9a-z_]+)$")

@@ -21,22 +21,34 @@ import (
 
 // initApp init kratos application.
 func initApp(confServer *conf.Server, confData *conf.Data, arg []v1.DeviceStateRegisterInfo, logger log.Logger) (*kratos.App, func(), error) {
-	dataData, cleanup, err := data.NewData(confData, logger)
+	redisData, cleanup, err := data.NewRedisData(confData)
 	if err != nil {
 		return nil, nil, err
 	}
-	unionRepo := data.NewRedisRepo(dataData, logger)
-	configUsecase := biz.NewConfigUsecase(unionRepo, logger)
-	configService := service.NewConfigService(configUsecase, logger)
-	warningDetectUsecase, err := biz.NewWarningDetectUsecase(unionRepo, arg, logger)
+	influxdbData, cleanup2, err := data.NewInfluxdbData(confData)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
 	}
-	warningDetectService, cleanup2 := service.NewWarningDetectService(warningDetectUsecase, logger)
+	unionRepo := data.NewRepo(redisData, influxdbData)
+	configUsecase := biz.NewConfigUsecase(unionRepo, logger)
+	configService := service.NewConfigService(configUsecase, logger)
+	warningDetectUsecase, err := biz.NewWarningDetectUsecase(unionRepo, arg, logger)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	warningDetectService, cleanup3, err := service.NewWarningDetectService(warningDetectUsecase, logger)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
 	httpServer := server.NewHTTPServer(confServer, configService, warningDetectService, logger)
 	app := newApp(logger, httpServer)
 	return app, func() {
+		cleanup3()
 		cleanup2()
 		cleanup()
 	}, nil
