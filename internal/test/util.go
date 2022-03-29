@@ -11,6 +11,7 @@ import (
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/transport/http"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	"google.golang.org/protobuf/proto"
 	"os"
@@ -126,7 +127,7 @@ func saveConfig(client *data.RedisData, deviceID string, config proto.Message) e
 }
 
 // 保存设备状态的辅助函数
-func saveState(client *data.InfluxdbData, org, bucket string, time time.Time,
+func saveState(client influxdb2.Client, org, bucket string, time time.Time,
 	deviceID string, fields map[string]float64, tags map[string]string) error {
 	writeAPI := client.WriteAPI(org, bucket)
 

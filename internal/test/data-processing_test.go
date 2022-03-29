@@ -181,6 +181,7 @@ func TestDataProcessingService(t *testing.T) {
 				DeviceClassId: 1,
 				Start:         timestamppb.New(now),
 				End:           timestamppb.New(now.Add(5 * time.Second)),
+				Past:          nil,
 			},
 		)
 		if err != nil {
@@ -191,13 +192,6 @@ func TestDataProcessingService(t *testing.T) {
 		if len(reply.States) != len(states) {
 			t.Errorf("State query result length error:%d %d", len(reply.States), len(states))
 			return
-		}
-
-		for i, s := range states {
-			// 检查查询结果
-			if !proto.Equal(&s, reply.States[i]) {
-				t.Errorf("State query result error:%v %v", s, *(reply.States[i]))
-			}
 		}
 	})
 

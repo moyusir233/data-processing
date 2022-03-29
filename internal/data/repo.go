@@ -113,11 +113,17 @@ func (r *Repo) RunWarningDetectTask(config *biz.WarningDetectTaskConfig) (*domai
 
 // StopWarningDetectTask 停止运行指定的task
 func (r *Repo) StopWarningDetectTask(run *domain.Run) error {
-	return r.influxdbClient.TasksAPI().CancelRun(context.Background(), run)
+	tasksAPI := r.influxdbClient.TasksAPI()
+	tasksAPI.CancelRun(context.Background(), run)
+	return tasksAPI.DeleteTaskWithID(context.Background(), *run.TaskID)
 }
 
 // BatchGetDeviceStateInfo 批量查询某一类设备的状态信息
 func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOption) ([]*v1.DeviceState, error) {
+	if option.Filter == nil {
+		option.Filter = make(map[string]string)
+	}
+
 	// 填充查询的参数，并将关于deviceID的filter转换为对_measurement的filter
 	if deviceID, ok := option.Filter["deviceID"]; ok {
 		delete(option.Filter, "deviceID")
@@ -140,12 +146,12 @@ func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOptio
 	var result []*v1.DeviceState
 
 	for tableResult.Next() {
-		pos := tableResult.TablePosition()
+		pos := tableResult.Record().ValueByKey("table").(int64)
 		if pos == -1 {
 			break
 		}
 		// result达到容量上限，则需要扩容
-		if pos == len(result) {
+		if int(pos) == len(result) {
 			result = append(result, &v1.DeviceState{Fields: make(map[string]float64)})
 		}
 
@@ -168,6 +174,10 @@ func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOptio
 
 // BatchGetDeviceWarningDetectField 批量查询某一类设备某个字段的信息
 func (r *Repo) BatchGetDeviceWarningDetectField(deviceClassID int, fieldName string, option *biz.QueryOption) (*api.QueryTableResult, error) {
+	if option.Filter == nil {
+		option.Filter = make(map[string]string)
+	}
+
 	// 添加关于deviceClassID和fieldName的filter
 	option.Filter["deviceClassID"] = strconv.Itoa(deviceClassID)
 	option.Filter["_field"] = fieldName
@@ -189,12 +199,12 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, e
 
 	var warnings []*utilApi.Warning
 	for tableResult.Next() {
-		pos := tableResult.TablePosition()
+		pos := tableResult.Record().ValueByKey("table").(int64)
 		if pos == -1 {
 			break
 		}
 		// 达到容量上限，则需要扩容
-		if pos == len(warnings) {
+		if int(pos) == len(warnings) {
 			warnings = append(warnings, &utilApi.Warning{})
 		}
 
@@ -259,10 +269,10 @@ func buildFluxQuery(option *biz.QueryOption) string {
 	flux := fmt.Sprintf(`from(bucket: "%s")`, option.Bucket)
 
 	if option.Past != 0 {
-		rangeFilter := "|> range(start: -%s)"
+		rangeFilter := `|> range(start: -%s)`
 		flux += fmt.Sprintf(rangeFilter, option.Past.String())
 	} else if option.Start != nil {
-		rangeFilter := "|> range(start: %s, stop: %s)"
+		rangeFilter := `|> range(start: %s, stop: %s)`
 
 		// 注意时间都需要使用UTC时间
 		start := strconv.FormatInt(option.Start.UTC().Unix(), 10)
@@ -272,6 +282,8 @@ func buildFluxQuery(option *biz.QueryOption) string {
 		}
 
 		flux += fmt.Sprintf(rangeFilter, start, stop)
+	} else {
+		flux += `|> range(start: -30m)`
 	}
 
 	if len(option.Filter) != 0 {

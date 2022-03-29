@@ -39,7 +39,8 @@ func NewWarningDetectService(wu *biz.WarningDetectUsecase, logger log.Logger) (
 
 func (s *WarningDetectService) BatchGetDeviceStateInfo(ctx context.Context, req *pb.BatchGetDeviceStateRequest) (*pb.BatchGetDeviceStateReply, error) {
 	option := new(biz.QueryOption)
-	if req.Past != nil {
+
+	if req.Past != nil && req.Past.AsDuration() != 0 {
 		option.Past = req.Past.AsDuration()
 	} else if req.Start != nil {
 		start := req.Start.AsTime()
@@ -66,7 +67,7 @@ func (s *WarningDetectService) BatchGetDeviceStateInfo(ctx context.Context, req 
 
 func (s *WarningDetectService) BatchGetWarning(ctx context.Context, req *pb.BatchGetWarningRequest) (*pb.BatchGetWarningReply, error) {
 	option := new(biz.QueryOption)
-	if req.Past != nil {
+	if req.Past != nil && req.Past.AsDuration() != 0 {
 		option.Past = req.Past.AsDuration()
 	} else if req.Start != nil {
 		start := req.Start.AsTime()

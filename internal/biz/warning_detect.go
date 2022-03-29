@@ -18,8 +18,6 @@ import (
 	"time"
 )
 
-const WarningDetectFieldLabelName = "field_id"
-
 type WarningDetectUsecase struct {
 	repo   UnionRepo
 	logger *log.Helper
@@ -189,8 +187,8 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 						DeviceClassId:   int32(deviceClassID),
 						DeviceFieldName: field.Name,
 						WarningMessage:  fmt.Sprintf("%s %s warning", deviceID, field.Name),
-						Start:           timestamppb.New(record.ValueByKey("_start").(time.Time)),
-						End:             timestamppb.New(record.ValueByKey("_stop").(time.Time)),
+						Start:           timestamppb.New(record.Start()),
+						End:             timestamppb.New(record.Stop()),
 					}
 				}
 			}
