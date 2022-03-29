@@ -152,7 +152,10 @@ func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOptio
 		}
 		// result达到容量上限，则需要扩容
 		if int(pos) == len(result) {
-			result = append(result, &v1.DeviceState{Fields: make(map[string]float64)})
+			result = append(result, &v1.DeviceState{
+				Fields: make(map[string]float64),
+				Tags:   make(map[string]string),
+			})
 		}
 
 		record := tableResult.Record()
@@ -161,6 +164,13 @@ func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOptio
 			result[pos].DeviceClassId = int32(deviceClassID)
 			// 数据库中的时间为utc时间，需要转换
 			result[pos].Time = timestamppb.New(record.Time().Add(8 * time.Hour))
+			// 解析tag
+			for k, v := range record.Values() {
+				// 除了系统字段、table字段以及deviceClassID字段，其余都视作tag
+				if !strings.HasSuffix(k, "_") && k != "deviceClassID" && k != "table" {
+					result[pos].Tags[k] = fmt.Sprintf("%v", v)
+				}
+			}
 		}
 		// 解析state的field
 		field := record.ValueByKey("_field")

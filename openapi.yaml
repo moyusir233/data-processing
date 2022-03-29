@@ -166,6 +166,8 @@ components:
                     format: RFC3339
                 fields:
                     $ref: '#/components/schemas/FieldsEntry'
+                tags:
+                    type: object
         DeviceStateRegisterInfo:
             properties:
                 fields:

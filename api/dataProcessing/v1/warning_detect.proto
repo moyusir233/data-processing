@@ -37,6 +37,7 @@ message DeviceState{
   string device_id = 2;
   google.protobuf.Timestamp time = 3;
   map<string, double> fields = 4;
+  map<string,string> tags=5;
 }
 // 设备状态信息批量查询请求
 message BatchGetDeviceStateRequest {
