@@ -8,6 +8,7 @@ import (
 	"gitee.com/moyusir/data-processing/internal/conf"
 	utilApi "gitee.com/moyusir/util/api/util/v1"
 	"gitee.com/moyusir/util/parser"
+	"github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/gorilla/websocket"
 	"github.com/influxdata/influxdb-client-go/v2/api"
@@ -94,12 +95,13 @@ type warningPushNode struct {
 }
 
 func NewWarningDetectUsecase(repo UnionRepo, registerInfo []utilApi.DeviceStateRegisterInfo, logger log.Logger) (*WarningDetectUsecase, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-
 	infoParser, err := parser.NewRegisterInfoParser(registerInfo)
 	if err != nil {
-		return nil, err
+		return nil, errors.Newf(
+			500, "Biz_State_Error", "初始化注册信息解析器时发生了错误%v", err)
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	w := &WarningDetectUsecase{
 		repo:               repo,
@@ -146,7 +148,12 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 	if err != nil {
 		return err
 	}
-	defer u.repo.StopWarningDetectTask(run)
+	defer func() {
+		err := u.repo.StopWarningDetectTask(run)
+		if err != nil {
+			u.logger.Error(err)
+		}
+	}()
 
 	// 发出任务启动成功的信号
 	start <- struct{}{}
@@ -181,6 +188,8 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 				record := tableResult.Record()
 				value := record.Value().(float64)
 				if field.Func(value) {
+					u.logger.Infof("检测到了违反预警规则的设备状态信息:%v", record.String())
+
 					deviceID := record.Measurement()
 					u.warningChannel <- &utilApi.Warning{
 						DeviceId:        deviceID,
@@ -192,7 +201,12 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 					}
 				}
 			}
-			tableResult.Close()
+			err = tableResult.Close()
+			if err != nil {
+				u.logger.Error(errors.Newf(
+					500, "Biz_State_Error",
+					"关闭查询设备字段信息的influx table result时发生了错误:%v", err))
+			}
 		}
 	}
 }
@@ -242,12 +256,16 @@ func (u *WarningDetectUsecase) warningFanOut() {
 
 // 负责向前端推送预警信息
 func (u *WarningDetectUsecase) warningPush(conn *websocket.Conn, node *warningPushNode) {
+	remoteAddr := conn.RemoteAddr().String()
+	u.logger.Infof("与 %v 建立了ws连接", remoteAddr)
+
 	// 协程结束后关闭与前端的连接，并标志node为不活跃状态
 	defer func() {
 		conn.Close()
 		node.mutex.Lock()
 		node.isActive = false
 		node.mutex.Unlock()
+		u.logger.Infof("关闭了与 %v 的ws连接", remoteAddr)
 	}()
 
 	var warning *utilApi.Warning
@@ -259,7 +277,12 @@ func (u *WarningDetectUsecase) warningPush(conn *websocket.Conn, node *warningPu
 			err := conn.WriteJSON(warning)
 			// TODO 考虑错误处理
 			if err != nil {
+				u.logger.Error(errors.Newf(500, "Biz_State_Error",
+					"向ws连接写入警告信息时发生了错误:%v", err,
+				))
 				return
+			} else {
+				u.logger.Infof("向 %v 推送了警告信息:%v", remoteAddr, warning.String())
 			}
 		}
 	}
@@ -311,9 +334,17 @@ func (u *WarningDetectUsecase) CloseDetection() error {
 	// 利用context结束所有预警检测的协程，并利用errgroup进行等待
 	u.cancel()
 	if err := u.warningDetectGroup.Wait(); err != nil {
-		return err
+		return errors.Newf(500, "Biz_State_Error",
+			"等待预警检测协程组结束时发生了错误:%v", err,
+		)
 	}
-	return u.warningPushGroup.Wait()
+
+	if err := u.warningPushGroup.Wait(); err != nil {
+		return errors.Newf(500, "Biz_State_Error",
+			"等待预警推送协程组结束时发生了错误:%v", err,
+		)
+	}
+	return nil
 }
 
 // AddWarningPushConnection 添加需要进行前端推送的连接
@@ -349,5 +380,8 @@ func (u *WarningDetectUsecase) BatchGetWarning(option *QueryOption) ([]*utilApi.
 
 // GetDeviceStateRegisterInfo 查询关于设备状态，包括预警规则在内的注册信息
 func (u *WarningDetectUsecase) GetDeviceStateRegisterInfo(deviceClassID int) *utilApi.DeviceStateRegisterInfo {
+	if deviceClassID >= len(u.parser.Info) {
+		return nil
+	}
 	return &u.parser.Info[deviceClassID]
 }

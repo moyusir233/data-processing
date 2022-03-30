@@ -5,6 +5,7 @@ import (
 	"gitee.com/moyusir/data-processing/internal/conf"
 	"gitee.com/moyusir/data-processing/internal/service"
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/go-kratos/kratos/v2/middleware/logging"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/go-kratos/kratos/v2/transport/http"
 	h "net/http"
@@ -14,7 +15,10 @@ import (
 func NewHTTPServer(c *conf.Server, cs *service.ConfigService, ws *service.WarningDetectService, logger log.Logger) *http.Server {
 	var opts = []http.ServerOption{
 		http.Middleware(
-			recovery.Recovery(),
+			recovery.Recovery(
+				recovery.WithLogger(logger),
+			),
+			logging.Server(logger),
 		),
 	}
 	if c.Http.Network != "" {

@@ -7,6 +7,8 @@ import (
 	"gitee.com/moyusir/data-processing/internal/biz"
 	"gitee.com/moyusir/data-processing/internal/conf"
 	utilApi "gitee.com/moyusir/util/api/util/v1"
+	"github.com/go-kratos/kratos/v2/errors"
+	"github.com/go-redis/redis/v8"
 	"github.com/influxdata/influxdb-client-go/v2/api"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	"github.com/influxdata/influxdb-client-go/v2/domain"
@@ -33,15 +35,19 @@ func NewRepo(redisData *RedisData, influxdbData *InfluxdbData) biz.UnionRepo {
 // GetDeviceConfig 查询保存在指定key的hash的field中的设备配置信息
 func (r *Repo) GetDeviceConfig(key, field string) ([]byte, error) {
 	result, err := r.redisClient.HGet(context.Background(), key, field).Result()
-	if err != nil {
-		return nil, err
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return nil, errors.Newf(
+			500, "Repo_Config_Error",
+			"向redis发出配置查询请求时发生了错误:%v", err)
 	}
 
 	// 二进制信息统一以十六进制字符串的信息在redis中保存，因此需要转换
 	var config []byte
 	_, err = fmt.Sscanf(result, "%x", &config)
 	if err != nil {
-		return nil, err
+		return nil, errors.Newf(
+			500, "Repo_Config_Error",
+			"将配置信息的十六进制字符串转为二进制信息时发生了错误:%v", err)
 	}
 
 	return config, nil
@@ -105,7 +111,9 @@ func (r *Repo) RunWarningDetectTask(config *biz.WarningDetectTaskConfig) (*domai
 		r.influxdbClient.orgId,
 	)
 	if err != nil {
-		return nil, err
+		return nil, errors.Newf(
+			500, "Repo_State_Error",
+			"启动influx task时发生了错误:%v", err)
 	}
 
 	return tasksAPI.RunManually(context.Background(), task)
@@ -115,7 +123,13 @@ func (r *Repo) RunWarningDetectTask(config *biz.WarningDetectTaskConfig) (*domai
 func (r *Repo) StopWarningDetectTask(run *domain.Run) error {
 	tasksAPI := r.influxdbClient.TasksAPI()
 	tasksAPI.CancelRun(context.Background(), run)
-	return tasksAPI.DeleteTaskWithID(context.Background(), *run.TaskID)
+	err := tasksAPI.DeleteTaskWithID(context.Background(), *run.TaskID)
+	if err != nil {
+		return errors.Newf(
+			500, "Repo_State_Error",
+			"停止influx task的运行时发生了错误:%v", err)
+	}
+	return nil
 }
 
 // BatchGetDeviceStateInfo 批量查询某一类设备的状态信息
@@ -139,7 +153,9 @@ func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOptio
 	queryApi := r.influxdbClient.QueryAPI(r.influxdbClient.org)
 	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(option))
 	if err != nil {
-		return nil, err
+		return nil, errors.Newf(
+			500, "Repo_State_Error",
+			"批量查询设备状态信息时发生了错误:%v", err)
 	}
 	defer tableResult.Close()
 
@@ -193,7 +209,14 @@ func (r *Repo) BatchGetDeviceWarningDetectField(deviceClassID int, fieldName str
 	option.Filter["_field"] = fieldName
 
 	queryApi := r.influxdbClient.QueryAPI(r.influxdbClient.org)
-	return queryApi.Query(context.Background(), buildFluxQuery(option))
+	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(option))
+	if err != nil {
+		return nil, errors.Newf(
+			500, "Repo_State_Error",
+			"查询设备状态字段信息时发生了错误:%v", err)
+	}
+
+	return tableResult, nil
 }
 
 func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, error) {
@@ -204,7 +227,9 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, e
 	queryApi := r.influxdbClient.QueryAPI(r.influxdbClient.org)
 	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(option))
 	if err != nil {
-		return nil, err
+		return nil, errors.Newf(
+			500, "Repo_State_Error",
+			"批量查询警告信息时发生了错误:%v", err)
 	}
 
 	var warnings []*utilApi.Warning
@@ -232,13 +257,17 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, e
 			case "start":
 				parse, err := time.Parse(time.RFC3339, value.(string))
 				if err != nil {
-					return nil, err
+					return nil, errors.Newf(
+						500, "Repo_State_Error",
+						"解析警告信息的start字段时发生了错误:%v", err)
 				}
 				warnings[pos].Start = timestamppb.New(parse.Add(8 * time.Hour))
 			case "end":
 				parse, err := time.Parse(time.RFC3339, value.(string))
 				if err != nil {
-					return nil, err
+					return nil, errors.Newf(
+						500, "Repo_State_Error",
+						"解析警告信息的end字段时发生了错误:%v", err)
 				}
 				warnings[pos].End = timestamppb.New(parse.Add(8 * time.Hour))
 			case "message":

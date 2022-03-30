@@ -1,6 +1,7 @@
 package biz
 
 import (
+	"github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/log"
 	"google.golang.org/protobuf/proto"
 )
@@ -39,7 +40,9 @@ func (u *ConfigUsecase) GetDeviceConfig(info *DeviceGeneralInfo, config proto.Me
 	// 调用proto包的反序列化函数，将查询得到的二进制信息转换为proto message
 	err = proto.Unmarshal(deviceConfig, config)
 	if err != nil {
-		return err
+		return errors.Newf(
+			500, "Biz_Config_Error",
+			"反序列化设备配置的proto二进制信息时发生了错误%v", err)
 	}
 
 	return nil

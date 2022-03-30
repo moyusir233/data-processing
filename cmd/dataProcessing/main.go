@@ -7,7 +7,6 @@ import (
 	"gitee.com/moyusir/data-processing/internal/conf"
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-kratos/kratos/v2/middleware/tracing"
 	"github.com/go-kratos/kratos/v2/transport/http"
 )
 
@@ -47,29 +46,27 @@ func main() {
 		"caller", log.DefaultCaller,
 		"service.id", id,
 		"service.name", Name,
-		"service.version", Version,
-		"trace_id", tracing.TraceID(),
-		"span_id", tracing.SpanID(),
 	)
+	helper := log.NewHelper(logger)
 
 	bc, err := conf.LoadConfig(flagconf)
 	if err != nil {
-		panic(err)
+		helper.Fatalf("导入配置时发生了错误:%v", err)
 	}
 
 	registerInfo, err := conf.LoadRegisterInfo(bc.Data.DeviceStateRegisterInfo)
 	if err != nil {
-		panic(err)
+		helper.Fatalf("导入注册信息时发生了错误:%v", err)
 	}
 
 	app, cleanup, err := initApp(bc.Server, bc.Data, registerInfo, logger)
 	if err != nil {
-		panic(err)
+		helper.Fatalf("应用初始化时发生了错误:%v", err)
 	}
 	defer cleanup()
 
 	// start and wait for stop signal
 	if err := app.Run(); err != nil {
-		panic(err)
+		helper.Fatalf("应用运行时发生了错误:%v", err)
 	}
 }
