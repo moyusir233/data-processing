@@ -38,7 +38,7 @@ func NewRedisData(c *conf.Data) (*RedisData, func(), error) {
 		SentinelAddrs:         []string{fmt.Sprintf("%s:%d", c.Redis.Host, c.Redis.SentinelPort)},
 		RouteByLatency:        false,
 		RouteRandomly:         false,
-		SlaveOnly:             false,
+		SlaveOnly:             true,
 		UseDisconnectedSlaves: false,
 		DB:                    0,
 		PoolSize:              int(c.Redis.PoolSize),

@@ -268,9 +268,32 @@ func (u *WarningDetectUsecase) warningPush(conn *websocket.Conn, node *warningPu
 		u.logger.Infof("关闭了与 %v 的ws连接", remoteAddr)
 	}()
 
+	// 在后台运行一个每分钟发出一次ping消息，检测ws连接是否还有效的协程
+	keepAliveCtx, cancel := context.WithCancel(context.Background())
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		pingMsg := []byte("ping")
+		for {
+			select {
+			case <-u.ctx.Done():
+				return
+			case <-ticker.C:
+				err := conn.WriteControl(websocket.PingMessage, pingMsg, time.Now().Add(30*time.Second))
+				if err != nil {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+
 	var warning *utilApi.Warning
 	for {
 		select {
+		case <-keepAliveCtx.Done():
+			u.logger.Infof("检测到不活跃的远程连接:%v", remoteAddr)
+			return
 		case <-u.ctx.Done():
 			return
 		case warning = <-node.warningChannel:

@@ -8,7 +8,6 @@ import (
 	"gitee.com/moyusir/data-processing/internal/conf"
 	utilApi "gitee.com/moyusir/util/api/util/v1"
 	"github.com/go-kratos/kratos/v2/errors"
-	"github.com/go-redis/redis/v8"
 	"github.com/influxdata/influxdb-client-go/v2/api"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	"github.com/influxdata/influxdb-client-go/v2/domain"
@@ -35,7 +34,7 @@ func NewRepo(redisData *RedisData, influxdbData *InfluxdbData) biz.UnionRepo {
 // GetDeviceConfig 查询保存在指定key的hash的field中的设备配置信息
 func (r *Repo) GetDeviceConfig(key, field string) ([]byte, error) {
 	result, err := r.redisClient.HGet(context.Background(), key, field).Result()
-	if err != nil && !errors.Is(err, redis.Nil) {
+	if err != nil {
 		return nil, errors.Newf(
 			500, "Repo_Config_Error",
 			"向redis发出配置查询请求时发生了错误:%v", err)
