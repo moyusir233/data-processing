@@ -246,7 +246,13 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, e
 		if warnings[pos].DeviceId == "" {
 			warnings[pos].DeviceId = record.Measurement()
 			warnings[pos].DeviceFieldName = record.ValueByKey("deviceFieldName").(string)
-			warnings[pos].DeviceClassId = int32(record.ValueByKey("deviceClassID").(int))
+			deviceClassID, err := strconv.Atoi(record.ValueByKey("deviceClassID").(string))
+			if err != nil {
+				return nil, errors.Newf(
+					500, "Repo_State_Error",
+					"批量查询警告信息时发生了错误:%v", err)
+			}
+			warnings[pos].DeviceClassId = int32(deviceClassID)
 		}
 
 		// 解析field，field包括start、end以及警告信息message
