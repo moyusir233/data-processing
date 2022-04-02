@@ -182,7 +182,7 @@ func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOptio
 			// 解析tag
 			for k, v := range record.Values() {
 				// 除了系统字段、table字段以及deviceClassID字段，其余都视作tag
-				if !strings.HasSuffix(k, "_") && k != "deviceClassID" && k != "table" {
+				if !strings.HasPrefix(k, "_") && k != "deviceClassID" && k != "table" {
 					result[pos].Tags[k] = fmt.Sprintf("%v", v)
 				}
 			}
@@ -246,6 +246,13 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, e
 		if warnings[pos].DeviceId == "" {
 			warnings[pos].DeviceId = record.Measurement()
 			warnings[pos].DeviceFieldName = record.ValueByKey("deviceFieldName").(string)
+			deviceClassID, err := strconv.Atoi(record.ValueByKey("deviceClassID").(string))
+			if err != nil {
+				return nil, errors.Newf(
+					500, "Repo_State_Error",
+					"批量查询警告信息时发生了错误:%v", err)
+			}
+			warnings[pos].DeviceClassId = int32(deviceClassID)
 		}
 
 		// 解析field，field包括start、end以及警告信息message
