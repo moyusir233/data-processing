@@ -400,11 +400,3 @@ func (u *WarningDetectUsecase) BatchGetWarning(option *QueryOption) ([]*utilApi.
 	option.Bucket = fmt.Sprintf("%s-warnings", conf.Username)
 	return u.repo.GetWarningMessage(option)
 }
-
-// GetDeviceStateRegisterInfo 查询关于设备状态，包括预警规则在内的注册信息
-func (u *WarningDetectUsecase) GetDeviceStateRegisterInfo(deviceClassID int) *utilApi.DeviceStateRegisterInfo {
-	if deviceClassID >= len(u.parser.Info) {
-		return nil
-	}
-	return &u.parser.Info[deviceClassID]
-}

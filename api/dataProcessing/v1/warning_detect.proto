@@ -24,12 +24,6 @@ service WarningDetect {
       get: "/warnings"
     };
   };
-  // 查询指定设备注册的预警规则
-  rpc GetDeviceStateRegisterInfo(GetDeviceStateRegisterInfoRequest) returns (api.util.v1.DeviceStateRegisterInfo) {
-    option (google.api.http) = {
-      get: "/register-info/states/{device_class_id}"
-    };
-  };
 }
 
 message DeviceState{
@@ -72,13 +66,6 @@ message BatchGetWarningRequest {
 message BatchGetWarningReply {
   repeated api.util.v1.Warning warnings = 1;
 }
-
-// 设备状态注册信息查询请求
-message GetDeviceStateRegisterInfoRequest {
-  // 设备类别号
-  int64 device_class_id = 1;
-}
-
 
 message DeviceState0 {
   string id = 1;

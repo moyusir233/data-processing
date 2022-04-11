@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	pb "gitee.com/moyusir/data-processing/api/dataProcessing/v1"
-	utilApi "gitee.com/moyusir/util/api/util/v1"
 )
 
 type WarningDetectService struct {
@@ -90,11 +89,6 @@ func (s *WarningDetectService) BatchGetWarning(ctx context.Context, req *pb.Batc
 	}
 
 	return &pb.BatchGetWarningReply{Warnings: warnings}, nil
-}
-
-func (s *WarningDetectService) GetDeviceStateRegisterInfo(ctx context.Context, req *pb.GetDeviceStateRegisterInfoRequest) (*utilApi.DeviceStateRegisterInfo, error) {
-	registerInfo := s.warningDetectUsecase.GetDeviceStateRegisterInfo(int(req.DeviceClassId))
-	return registerInfo, nil
 }
 
 func (s *WarningDetectService) ServeWebsocketConnection(w http.ResponseWriter, r *http.Request) error {

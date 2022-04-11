@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	v1 "gitee.com/moyusir/data-processing/api/dataProcessing/v1"
+	"github.com/go-kratos/kratos/v2/encoding"
 	"github.com/influxdata/influxdb-client-go/v2"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"sync"
@@ -42,7 +43,7 @@ func TestSync_RWMutex(t *testing.T) {
 	fmt.Println(time.Since(begin))
 }
 func TestWriteInfluxdb(t *testing.T) {
-	client := influxdb2.NewClient("http://localhost:8086", "76xKWZAiOdNntjAjriOJCBIFiXymPLqLxNmXWowZTj6900-jMj5JHRaQnSqTrstrfyFTdUR4Py0Z4Hr3RUecHw==")
+	client := influxdb2.NewClient("http://localhost:8086", "BBQcGQrP1crCOe_alluyoagCjOaRo233oCvlBvYdcEoc7DM8MgzgF7YPzLkDxZ_LA92UsAJ0LiuvV2KwyQ2qfw==")
 	defer client.Close()
 
 	var states []v1.DeviceState1
@@ -70,25 +71,25 @@ func TestWriteInfluxdb(t *testing.T) {
 		}
 		states = append(states, state)
 	}
-
-	queryAPI := client.QueryAPI("test")
-	flux := `from(bucket: "test")
-				  |> range(start: %d, stop: %d)
-				  |> filter(fn: (r) => r["deviceClassID"] == "1")
-				  |> group(columns: ["deviceClassID", "_measurement", "_time"])`
-
-	tableResult, err := queryAPI.Query(context.Background(),
-		fmt.Sprintf(flux, now.UTC().Unix(), now.Add(5*time.Second).UTC().Unix()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tableResult.Close()
-
-	for tableResult.Next() {
-		table := tableResult.Record().ValueByKey("table")
-		fmt.Printf("table: %T %v\n", table, table)
-		fmt.Println(tableResult.Record().String())
-	}
+	//
+	//queryAPI := client.QueryAPI("test")
+	//flux := `from(bucket: "test")
+	//			  |> range(start: %d, stop: %d)
+	//			  |> filter(fn: (r) => r["deviceClassID"] == "1")
+	//			  |> group(columns: ["deviceClassID", "_measurement", "_time"])`
+	//
+	//tableResult, err := queryAPI.Query(context.Background(),
+	//	fmt.Sprintf(flux, now.UTC().Unix(), now.Add(5*time.Second).UTC().Unix()))
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//defer tableResult.Close()
+	//
+	//for tableResult.Next() {
+	//	table := tableResult.Record().ValueByKey("table")
+	//	fmt.Printf("table: %T %v\n", table, table)
+	//	fmt.Println(tableResult.Record().String())
+	//}
 
 }
 
@@ -106,4 +107,13 @@ func TestClearInfluxdb(t *testing.T) {
 	for _, bucket := range []string{"test", "test-warning_detect", "test-warnings"} {
 		deleteAPI.DeleteWithName(context.Background(), "test", bucket, start, end, predicate)
 	}
+}
+
+func TestTmp(t *testing.T) {
+	timestamp := timestamppb.New(time.Now())
+	marshal, err := encoding.GetCodec("json").Marshal(timestamp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(string(marshal))
 }

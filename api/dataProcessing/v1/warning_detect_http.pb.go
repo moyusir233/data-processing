@@ -6,7 +6,6 @@ package v1
 
 import (
 	context "context"
-	v1 "gitee.com/moyusir/util/api/util/v1"
 	http "github.com/go-kratos/kratos/v2/transport/http"
 	binding "github.com/go-kratos/kratos/v2/transport/http/binding"
 )
@@ -21,14 +20,12 @@ const _ = http.SupportPackageIsVersion1
 type WarningDetectHTTPServer interface {
 	BatchGetDeviceStateInfo(context.Context, *BatchGetDeviceStateRequest) (*BatchGetDeviceStateReply, error)
 	BatchGetWarning(context.Context, *BatchGetWarningRequest) (*BatchGetWarningReply, error)
-	GetDeviceStateRegisterInfo(context.Context, *GetDeviceStateRegisterInfoRequest) (*v1.DeviceStateRegisterInfo, error)
 }
 
 func RegisterWarningDetectHTTPServer(s *http.Server, srv WarningDetectHTTPServer) {
 	r := s.Route("/")
 	r.GET("/states/{device_class_id}", _WarningDetect_BatchGetDeviceStateInfo0_HTTP_Handler(srv))
 	r.GET("/warnings", _WarningDetect_BatchGetWarning0_HTTP_Handler(srv))
-	r.GET("/register-info/states/{device_class_id}", _WarningDetect_GetDeviceStateRegisterInfo0_HTTP_Handler(srv))
 }
 
 func _WarningDetect_BatchGetDeviceStateInfo0_HTTP_Handler(srv WarningDetectHTTPServer) func(ctx http.Context) error {
@@ -72,32 +69,9 @@ func _WarningDetect_BatchGetWarning0_HTTP_Handler(srv WarningDetectHTTPServer) f
 	}
 }
 
-func _WarningDetect_GetDeviceStateRegisterInfo0_HTTP_Handler(srv WarningDetectHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in GetDeviceStateRegisterInfoRequest
-		if err := ctx.BindQuery(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindVars(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, "/api.dataProcessing.v1.WarningDetect/GetDeviceStateRegisterInfo")
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetDeviceStateRegisterInfo(ctx, req.(*GetDeviceStateRegisterInfoRequest))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*v1.DeviceStateRegisterInfo)
-		return ctx.Result(200, reply)
-	}
-}
-
 type WarningDetectHTTPClient interface {
 	BatchGetDeviceStateInfo(ctx context.Context, req *BatchGetDeviceStateRequest, opts ...http.CallOption) (rsp *BatchGetDeviceStateReply, err error)
 	BatchGetWarning(ctx context.Context, req *BatchGetWarningRequest, opts ...http.CallOption) (rsp *BatchGetWarningReply, err error)
-	GetDeviceStateRegisterInfo(ctx context.Context, req *GetDeviceStateRegisterInfoRequest, opts ...http.CallOption) (rsp *v1.DeviceStateRegisterInfo, err error)
 }
 
 type WarningDetectHTTPClientImpl struct {
@@ -126,19 +100,6 @@ func (c *WarningDetectHTTPClientImpl) BatchGetWarning(ctx context.Context, in *B
 	pattern := "/warnings"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation("/api.dataProcessing.v1.WarningDetect/BatchGetWarning"))
-	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, err
-}
-
-func (c *WarningDetectHTTPClientImpl) GetDeviceStateRegisterInfo(ctx context.Context, in *GetDeviceStateRegisterInfoRequest, opts ...http.CallOption) (*v1.DeviceStateRegisterInfo, error) {
-	var out v1.DeviceStateRegisterInfo
-	pattern := "/register-info/states/{device_class_id}"
-	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation("/api.dataProcessing.v1.WarningDetect/GetDeviceStateRegisterInfo"))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {

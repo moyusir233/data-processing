@@ -41,23 +41,6 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/DeviceConfig1'
-    /register-info/states/{device_class_id}:
-        get:
-            summary: 查询指定设备注册的预警规则
-            operationId: WarningDetect_GetDeviceStateRegisterInfo
-            parameters:
-                - name: device_class_id
-                  in: query
-                  description: 设备类别号
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/DeviceStateRegisterInfo'
     /states/{device_class_id}:
         get:
             operationId: WarningDetect_BatchGetDeviceStateInfo
@@ -168,13 +151,6 @@ components:
                     $ref: '#/components/schemas/FieldsEntry'
                 tags:
                     type: object
-        DeviceStateRegisterInfo:
-            properties:
-                fields:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/Field'
-            description: 设备状态注册信息
         Warning:
             properties:
                 device_id:
