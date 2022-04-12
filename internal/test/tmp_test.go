@@ -3,10 +3,8 @@ package test
 import (
 	"context"
 	"fmt"
-	utilApi "gitee.com/moyusir/util/api/util/v1"
-	"github.com/golang/protobuf/proto"
+	"github.com/go-kratos/kratos/v2/encoding"
 	"github.com/influxdata/influxdb-client-go/v2"
-	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"sync"
 	"testing"
@@ -112,36 +110,9 @@ func TestClearInfluxdb(t *testing.T) {
 }
 
 func TestTmp(t *testing.T) {
-	// 用于创建结构体副本的辅助函数
-	copyAndAssign := func(src proto.Message, fieldName string, fieldValue interface{}) proto.Message {
-		dst := proto.Clone(src)
-		messageReflect := proto.MessageReflect(dst)
-		fieldDescriptor := messageReflect.Descriptor().Fields().ByTextName(fieldName)
-
-		if message, ok := fieldValue.(proto.Message); ok {
-			messageReflect.Set(
-				fieldDescriptor, protoreflect.ValueOfMessage(proto.MessageReflect(message)))
-		} else {
-			messageReflect.Set(fieldDescriptor, protoreflect.ValueOf(fieldValue))
-		}
-		return dst
+	marshal, err := encoding.GetCodec("json").Marshal(timestamppb.New(time.Now().Add(8 * time.Hour)))
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	// 准备用于分页测试的警告信息数据
-	now := time.Now()
-	warnings := []*utilApi.Warning{
-		{
-			DeviceClassId:   0,
-			DeviceId:        "test1",
-			DeviceFieldName: "current",
-			WarningMessage:  "warning",
-			Start:           timestamppb.New(now.UTC()),
-			End:             timestamppb.New(now.Add(5 * time.Minute).UTC()),
-		},
-	}
-
-	warnings = append(
-		warnings, copyAndAssign(warnings[0], "start", timestamppb.New(now.UTC())).(*utilApi.Warning))
-
-	fmt.Printf("%v", warnings[1])
+	fmt.Println(string(marshal))
 }

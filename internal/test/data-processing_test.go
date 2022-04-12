@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	v1 "gitee.com/moyusir/data-processing/api/dataProcessing/v1"
+	"gitee.com/moyusir/data-processing/internal/conf"
 	"gitee.com/moyusir/data-processing/internal/data"
 	utilApi "gitee.com/moyusir/util/api/util/v1"
 	"github.com/gorilla/websocket"
@@ -100,8 +101,8 @@ func TestDataProcessingService(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		for _, bucket := range []string{"test", "test-warning_detect", "test-warnings"} {
-			clearInfluxdb(influxClient, "test", bucket, 1)
+		for _, bucket := range []string{conf.Username, conf.Username + "-warning_detect", conf.Username + "-warnings"} {
+			clearInfluxdb(influxClient, bootstrap.Data.Influxdb.Org, bucket, 1)
 		}
 		cleanup2()
 	})
@@ -162,11 +163,16 @@ func TestDataProcessingService(t *testing.T) {
 				Current:     1000,
 				Temperature: 0,
 			}
+			// 由于解析结果时，利用的是groupCount是依据注册信息填写的预警字段得到的，
+			// 因此上传临时的设备状态信息的字段数量也要符合注册时的预警字段数量，
+			// 否则会影响influxdb查询结果的解析
 			fields := map[string]float64{
-				"tmp": 123.0,
+				"tmp1": 123.0,
+				"tmp2": 123.0,
+				"tmp3": 123.0,
 			}
 			err := saveState(influxClient,
-				"test", "test", state.Time.AsTime(), state.Id,
+				bootstrap.Data.Influxdb.Org, conf.Username, state.Time.AsTime(), state.Id,
 				fields, tags,
 			)
 			if err != nil {
@@ -318,7 +324,7 @@ func TestDataProcessingService(t *testing.T) {
 				"temperature": s.Temperature,
 			}
 			s.Time = timestamppb.New(now.Add(time.Duration(i+5) * time.Second))
-			err := saveState(influxClient, "test", "test",
+			err := saveState(influxClient, bootstrap.Data.Influxdb.Org, conf.Username,
 				s.Time.AsTime(), s.Id, fields, tags,
 			)
 			if err != nil {

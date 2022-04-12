@@ -21,7 +21,7 @@ import (
 
 // 提供给测试程序使用的通用初始化函数
 func generalInit(path string) (*conf.Bootstrap, error) {
-	err := os.Setenv("USERNAME", "test")
+	err := os.Setenv("USERNAME", "init_bucket")
 	if err != nil {
 		return nil, err
 	}

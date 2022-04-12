@@ -1,6 +1,7 @@
 package test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"gitee.com/moyusir/data-processing/internal/biz"
@@ -9,6 +10,7 @@ import (
 	utilApi "gitee.com/moyusir/util/api/util/v1"
 	"github.com/golang/protobuf/proto"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"testing"
@@ -38,7 +40,7 @@ func TestRepo_Influxdb(t *testing.T) {
 
 		deleteAPI := client.DeleteAPI()
 		start := time.Now().UTC().Add(-1 * time.Hour)
-		end := time.Now().UTC()
+		end := time.Now().UTC().Add(3 * time.Hour)
 		for id := 0; id < 2; id++ {
 			predicate := fmt.Sprintf(`deviceClassID="%d"`, id)
 			for _, bucket := range []string{"test", "test-warning_detect", "test-warnings"} {
@@ -79,11 +81,11 @@ func TestRepo_Influxdb(t *testing.T) {
 		}
 
 		warnings = append(warnings,
-			copyAndAssign(warnings[0], "device_class_id", int32(1)).(*utilApi.Warning),
-			copyAndAssign(warnings[0], "device_id", "test2").(*utilApi.Warning),
-			copyAndAssign(warnings[0], "device_field_name", "voltage").(*utilApi.Warning),
 			copyAndAssign(
 				warnings[0], "start", timestamppb.New(now.Add(5*time.Minute))).(*utilApi.Warning),
+			copyAndAssign(warnings[0], "device_field_name", "voltage").(*utilApi.Warning),
+			copyAndAssign(warnings[0], "device_id", "test2").(*utilApi.Warning),
+			copyAndAssign(warnings[0], "device_class_id", int32(1)).(*utilApi.Warning),
 		)
 
 		// 写入测试数据
@@ -93,15 +95,16 @@ func TestRepo_Influxdb(t *testing.T) {
 		}
 
 		// 测试分页查询
-		stop := time.Now().Add(10 * time.Minute)
+		stop := now.Add(10 * time.Minute)
 		option := &biz.QueryOption{
 			Bucket:     "test",
 			Start:      &now,
 			Stop:       &stop,
 			CountQuery: false,
 			// 注意limit和offset都要依据warning的field的数量放缩
-			Limit:  3,
-			Offset: 0,
+			Limit:      3,
+			Offset:     0,
+			GroupCount: 3,
 		}
 
 		for i, warning := range warnings {
@@ -116,12 +119,50 @@ func TestRepo_Influxdb(t *testing.T) {
 				continue
 			}
 
-			if !proto.Equal(warning, messages[0]) {
+			// 由于timestamppb保存的时间戳是当做UTC时间保存的，如果希望protobuf的timestamp对象
+			// 解析出来的时间日期时本地时间，则需要对时间进行偏移
+			warning.Start = timestamppb.New(warning.Start.AsTime().Add(8 * time.Hour))
+			warning.End = timestamppb.New(warning.End.AsTime().Add(8 * time.Hour))
+
+			// 序列化为json后再进行比较
+			warningJson, err := protojson.Marshal(warning)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msgJson, err := protojson.Marshal(messages[0])
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !bytes.Equal(warningJson, msgJson) {
 				t.Errorf(
 					"分页查询得到的警告信息与期望的不一致:\nexpect:\n%v\npractice:\n%v",
-					warning, messages[0],
+					string(warningJson), string(msgJson),
 				)
 			}
+			//if !proto.Equal(warning, messages[0]) {
+			//	t.Errorf(
+			//		"分页查询得到的警告信息与期望的不一致:\nexpect:\n%v\npractice:\n%v",
+			//		warning, messages[0],
+			//	)
+			//	marshal, err := protojson.Marshal(messages[0])
+			//	if err != nil {
+			//		continue
+			//	}
+			//	t.Error(string(marshal))
+			//}
+		}
+
+		// 测试查询记录总数
+		count, err := repo.GetRecordCount(option)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if int(count/3) != len(warnings) {
+			t.Fatalf("查询到的记录数量与期望的不符合:%d,%d", count/3, len(warnings))
+		} else {
+			t.Log("查询到的记录数量正确")
 		}
 
 	})

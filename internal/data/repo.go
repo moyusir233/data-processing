@@ -110,6 +110,9 @@ func (r *Repo) RunWarningDetectTask(config *biz.WarningDetectTaskConfig) (*domai
 		r.influxdbClient.orgId,
 	)
 	if err != nil {
+		if task != nil {
+			tasksAPI.DeleteTask(context.Background(), task)
+		}
 		return nil, errors.Newf(
 			500, "Repo_State_Error",
 			"启动influx task时发生了错误:%v", err)
@@ -120,6 +123,9 @@ func (r *Repo) RunWarningDetectTask(config *biz.WarningDetectTaskConfig) (*domai
 
 // StopWarningDetectTask 停止运行指定的task
 func (r *Repo) StopWarningDetectTask(run *domain.Run) error {
+	if run == nil {
+		return nil
+	}
 	tasksAPI := r.influxdbClient.TasksAPI()
 	tasksAPI.CancelRun(context.Background(), run)
 	err := tasksAPI.DeleteTaskWithID(context.Background(), *run.TaskID)
@@ -179,13 +185,13 @@ func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOptio
 
 	var result []*v1.DeviceState
 
-	for tableResult.Next() {
-		pos := tableResult.Record().ValueByKey("table").(int64)
+	for i := 0; tableResult.Next(); i++ {
+		pos := i / option.GroupCount
 		if pos == -1 {
 			break
 		}
 		// result达到容量上限，则需要扩容
-		if int(pos) == len(result) {
+		if pos == len(result) {
 			result = append(result, &v1.DeviceState{
 				Fields: make(map[string]float64),
 				Tags:   make(map[string]string),
@@ -251,13 +257,10 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, e
 	}
 
 	var warnings []*utilApi.Warning
-	for tableResult.Next() {
-		pos := tableResult.Record().ValueByKey("table").(int64)
-		if pos == -1 {
-			break
-		}
+	for i := 0; tableResult.Next(); i++ {
+		pos := i / option.GroupCount
 		// 达到容量上限，则需要扩容
-		if int(pos) == len(warnings) {
+		if pos == len(warnings) {
 			warnings = append(warnings, &utilApi.Warning{})
 		}
 
@@ -370,14 +373,14 @@ func buildFluxQuery(option *biz.QueryOption) string {
 		group[i] = fmt.Sprintf(`"%s"`, g)
 	}
 
+	// 以分组条件group进行排序，让逻辑上视为一条记录排列在一起
+	flux += fmt.Sprintf(
+		`|> group()|> sort(columns: [%s])`, strings.Join(group, ","))
+
 	// 分页查询
 	if option.Limit != 0 {
 		// 利用group聚合，然后利用sort将逻辑上视为同一记录的信息排列在一起，
 		// 从而可以利用limit函数进行分页，但是要注意，limit和offset要进行放缩
-
-		// 以分组条件group进行排序，让逻辑上视为一条记录排列在一起以用于分页
-		flux += fmt.Sprintf(
-			`|> group()|> sort(columns: [%s])`, strings.Join(group, ","))
 		// 分页
 		flux += fmt.Sprintf(`|> limit(n: %d,offset: %d)`, option.Limit, option.Offset)
 	}
@@ -386,10 +389,11 @@ func buildFluxQuery(option *biz.QueryOption) string {
 	// 注意此时得到的记录数量是measurement的field的数量乘以实际的记录数，因此还要除以field的数量
 	if option.CountQuery {
 		flux += "|> group()|> count()"
-	} else {
-		format := `|> group(columns: [%s])`
-		flux += fmt.Sprintf(format, strings.Join(group, ", "))
 	}
+	//else {
+	//	format := `|> group(columns: [%s])`
+	//	flux += fmt.Sprintf(format, strings.Join(group, ", "))
+	//}
 
 	return flux
 }

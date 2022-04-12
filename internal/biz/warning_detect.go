@@ -85,8 +85,10 @@ type QueryOption struct {
 	Past time.Duration
 	// 查询时的过滤条件，可以指定tag、_measurement、_field
 	Filter map[string]string
-	// 依据指定的列名进行groupBy操作，用于reshape查询结果
+	// 依据指定的列名进行分组操作，通过sort实现，主要是将一个table中逻辑上视为一条记录的信息排列在一起
 	GroupBy []string
+	// 每个由逻辑上可以视作一条记录的信息组成的组的大小，在将信息组合成记录时使用
+	GroupCount int
 	// 是否进行计数查询
 	CountQuery bool
 	// 分页查询相关参数
@@ -399,9 +401,12 @@ func (u *WarningDetectUsecase) BatchGetDeviceStateInfo(
 	option *QueryOption) (states []*v1.DeviceState, count int64, err error) {
 	option.Bucket = conf.Username
 
+	// 一条状态记录产生其预警字段数量的信息，因此GroupCount即等于设备预警字段信息
+	fieldCount := len(u.parser.GetWarningDetectFields(deviceClassID))
+	option.GroupCount = fieldCount
+
 	// 依据measurement field的数量对limit和offset进行放缩
 	if option.Limit != 0 {
-		fieldCount := len(u.parser.GetWarningDetectFields(deviceClassID))
 		option.Limit *= fieldCount
 		option.Offset *= fieldCount
 	}
@@ -428,12 +433,14 @@ func (u *WarningDetectUsecase) BatchGetWarning(option *QueryOption) (
 	// 以<用户名-warning>为名的bucket中保存着警告信息
 	option.Bucket = fmt.Sprintf("%s-warnings", conf.Username)
 
+	// 但警告信息固定三条field:start end message
+	fieldCount := 3
+	option.GroupCount = fieldCount
+
 	// 依据measurement field的数量对limit和offset进行放缩
-	// 但由于警告信息固定三条field:start end message，因此需要放缩3倍
 	if option.Limit != 0 {
-		fieldLen := 3
-		option.Limit *= fieldLen
-		option.Offset *= fieldLen
+		option.Limit *= fieldCount
+		option.Offset *= fieldCount
 	}
 
 	warnings, err = u.repo.GetWarningMessage(option)
