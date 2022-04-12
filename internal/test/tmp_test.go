@@ -3,9 +3,10 @@ package test
 import (
 	"context"
 	"fmt"
-	v1 "gitee.com/moyusir/data-processing/api/dataProcessing/v1"
-	"github.com/go-kratos/kratos/v2/encoding"
+	utilApi "gitee.com/moyusir/util/api/util/v1"
+	"github.com/golang/protobuf/proto"
 	"github.com/influxdata/influxdb-client-go/v2"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"sync"
 	"testing"
@@ -43,53 +44,54 @@ func TestSync_RWMutex(t *testing.T) {
 	fmt.Println(time.Since(begin))
 }
 func TestWriteInfluxdb(t *testing.T) {
-	client := influxdb2.NewClient("http://localhost:8086", "BBQcGQrP1crCOe_alluyoagCjOaRo233oCvlBvYdcEoc7DM8MgzgF7YPzLkDxZ_LA92UsAJ0LiuvV2KwyQ2qfw==")
+	client := influxdb2.NewClient("http://localhost:8086", "L5Uo-KWQ1GvJ3gVV00Sc6TRrxTSnIVxiOOWcL5t1QFv42kP2cQMoPWPJSrWOWxv-t-4IffAA5Jkj9LXt34hVRQ==")
 	defer client.Close()
 
-	var states []v1.DeviceState1
-	tags := map[string]string{"deviceClassID": "1"}
-	now := time.Now()
-	for i := 0; i < 5; i++ {
-		// 为了不影响之后的预警检测测试，这里写入不违反注册信息处填写的预警规则的设备状态
-		state := v1.DeviceState1{
-			Id: fmt.Sprintf("%s%d", t.Name(), i),
-			// 注意这里写入的设备状态的时间应该为递增顺序，便于后续批量查询的检查
-			Time:        timestamppb.New(now.Add(time.Duration(i) * time.Second)),
-			Voltage:     0,
-			Current:     1000,
-			Temperature: 0,
-		}
-		fields := map[string]float64{
-			"tmp": 123.0,
-		}
-		err := saveState(client,
-			"test", "test", state.Time.AsTime(), state.Id,
-			fields, tags,
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		states = append(states, state)
+	//var states []v1.DeviceState1
+	//tags := map[string]string{"deviceClassID": "1"}
+	//fields := map[string]float64{
+	//	"tmp": 123.0,
+	//}
+	//now := time.Now()
+	//
+	//for i := 0; i < 50; i++ {
+	//	// 为了不影响之后的预警检测测试，这里写入不违反注册信息处填写的预警规则的设备状态
+	//	state := v1.DeviceState1{
+	//		Id: fmt.Sprintf("%s%d", t.Name(), i),
+	//		// 注意这里写入的设备状态的时间应该为递增顺序，便于后续批量查询的检查
+	//		Time:        timestamppb.New(now.Add(time.Duration(i) * time.Minute)),
+	//		Voltage:     0,
+	//		Current:     1000,
+	//		Temperature: 0,
+	//	}
+	//	err := saveState(client,
+	//		"test", "test", state.Time.AsTime(), state.Id,
+	//		fields, tags,
+	//	)
+	//	if err != nil {
+	//		t.Fatal(err)
+	//	}
+	//	states = append(states, state)
+	//}
+
+	queryAPI := client.QueryAPI("test")
+	flux := `from(bucket: "test")
+				  |> range(start: -2h)
+				  |> filter(fn: (r) => r["deviceClassID"] == "1")
+				  |> group()
+				  |> count()`
+
+	tableResult, err := queryAPI.Query(context.Background(), flux)
+	if err != nil {
+		t.Fatal(err)
 	}
-	//
-	//queryAPI := client.QueryAPI("test")
-	//flux := `from(bucket: "test")
-	//			  |> range(start: %d, stop: %d)
-	//			  |> filter(fn: (r) => r["deviceClassID"] == "1")
-	//			  |> group(columns: ["deviceClassID", "_measurement", "_time"])`
-	//
-	//tableResult, err := queryAPI.Query(context.Background(),
-	//	fmt.Sprintf(flux, now.UTC().Unix(), now.Add(5*time.Second).UTC().Unix()))
-	//if err != nil {
-	//	t.Fatal(err)
-	//}
-	//defer tableResult.Close()
-	//
-	//for tableResult.Next() {
-	//	table := tableResult.Record().ValueByKey("table")
-	//	fmt.Printf("table: %T %v\n", table, table)
-	//	fmt.Println(tableResult.Record().String())
-	//}
+	defer tableResult.Close()
+
+	for tableResult.Next() {
+		value := tableResult.Record().Value()
+		fmt.Printf("value: %T %v\n", value, value)
+		fmt.Println(tableResult.Record().String())
+	}
 
 }
 
@@ -110,10 +112,36 @@ func TestClearInfluxdb(t *testing.T) {
 }
 
 func TestTmp(t *testing.T) {
-	timestamp := timestamppb.New(time.Now())
-	marshal, err := encoding.GetCodec("json").Marshal(timestamp)
-	if err != nil {
-		t.Fatal(err)
+	// 用于创建结构体副本的辅助函数
+	copyAndAssign := func(src proto.Message, fieldName string, fieldValue interface{}) proto.Message {
+		dst := proto.Clone(src)
+		messageReflect := proto.MessageReflect(dst)
+		fieldDescriptor := messageReflect.Descriptor().Fields().ByTextName(fieldName)
+
+		if message, ok := fieldValue.(proto.Message); ok {
+			messageReflect.Set(
+				fieldDescriptor, protoreflect.ValueOfMessage(proto.MessageReflect(message)))
+		} else {
+			messageReflect.Set(fieldDescriptor, protoreflect.ValueOf(fieldValue))
+		}
+		return dst
 	}
-	fmt.Println(string(marshal))
+
+	// 准备用于分页测试的警告信息数据
+	now := time.Now()
+	warnings := []*utilApi.Warning{
+		{
+			DeviceClassId:   0,
+			DeviceId:        "test1",
+			DeviceFieldName: "current",
+			WarningMessage:  "warning",
+			Start:           timestamppb.New(now.UTC()),
+			End:             timestamppb.New(now.Add(5 * time.Minute).UTC()),
+		},
+	}
+
+	warnings = append(
+		warnings, copyAndAssign(warnings[0], "start", timestamppb.New(now.UTC())).(*utilApi.Warning))
+
+	fmt.Printf("%v", warnings[1])
 }

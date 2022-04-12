@@ -196,23 +196,23 @@ func TestDataProcessingService(t *testing.T) {
 	})
 
 	// 3. 测试关于设备状态的注册信息的查询功能
-	t.Run("Test_GetRegisterInfo", func(t *testing.T) {
-		for i, info := range registerInfo {
-			stateRegisterInfo, err := warningDetectHTTPClient.GetDeviceStateRegisterInfo(
-				context.Background(),
-				&v1.GetDeviceStateRegisterInfoRequest{DeviceClassId: int64(i)},
-			)
-			if err != nil {
-				t.Error(err)
-				return
-			}
-
-			// 检查信息
-			if !proto.Equal(&info, stateRegisterInfo) {
-				t.Errorf("Register info query result error:%v %v", info, *stateRegisterInfo)
-			}
-		}
-	})
+	//t.Run("Test_GetRegisterInfo", func(t *testing.T) {
+	//	for i, info := range registerInfo {
+	//		stateRegisterInfo, err := warningDetectHTTPClient.GetDeviceStateRegisterInfo(
+	//			context.Background(),
+	//			&v1.GetDeviceStateRegisterInfoRequest{DeviceClassId: int64(i)},
+	//		)
+	//		if err != nil {
+	//			t.Error(err)
+	//			return
+	//		}
+	//
+	//		// 检查信息
+	//		if !proto.Equal(&info, stateRegisterInfo) {
+	//			t.Errorf("Register info query result error:%v %v", info, *stateRegisterInfo)
+	//		}
+	//	}
+	//})
 
 	// 第四个测试和第五个测试中共用的设备状态信息
 	var states []v1.DeviceState1

@@ -45,10 +45,14 @@ message BatchGetDeviceStateRequest {
   google.protobuf.Duration past = 4;
   // 查询过滤的条件，可以针对_measurement、_field或tag进行过滤
   map<string, string> filter = 5;
+  // 分页查询参数
+  int32 limit = 6;
+  int32 offset = 7;
 }
 // 设备状态信息批量查询响应
 message BatchGetDeviceStateReply{
   repeated DeviceState states = 1;
+  int32 total = 2;
 }
 
 // 警告消息批量查询请求
@@ -61,10 +65,14 @@ message BatchGetWarningRequest {
   google.protobuf.Duration past = 3;
   // 查询过滤的条件，可以针对_measurement、_field或tag进行过滤
   map<string, string> filter = 4;
+  // 分页查询参数
+  int32 limit = 5;
+  int32 offset = 6;
 }
 // 警告消息批量查询响应
 message BatchGetWarningReply {
   repeated api.util.v1.Warning warnings = 1;
+  int32 total = 2;
 }
 
 message DeviceState0 {

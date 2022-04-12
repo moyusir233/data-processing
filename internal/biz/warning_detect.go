@@ -50,6 +50,8 @@ type WarningDetectRepo interface {
 	GetWarningMessage(option *QueryOption) ([]*utilApi.Warning, error)
 	// SaveWarningMessage 保存警告信息
 	SaveWarningMessage(bucket string, warnings ...*utilApi.Warning) error
+	// GetRecordCount 依据查询条件获取记录数
+	GetRecordCount(option *QueryOption) (int64, error)
 	// RunWarningDetectTask 依据预警字段注册的预警规则，创建并运行下采样设备状态信息数据的task
 	RunWarningDetectTask(config *WarningDetectTaskConfig) (*domain.Run, error)
 	// StopWarningDetectTask 关闭指定task的运行
@@ -85,6 +87,11 @@ type QueryOption struct {
 	Filter map[string]string
 	// 依据指定的列名进行groupBy操作，用于reshape查询结果
 	GroupBy []string
+	// 是否进行计数查询
+	CountQuery bool
+	// 分页查询相关参数
+	Limit  int
+	Offset int
 }
 
 // 链表节点，保存mutex、channel以及状态标志
@@ -389,14 +396,57 @@ func (u *WarningDetectUsecase) AddWarningPushConnection(conn *websocket.Conn) {
 // BatchGetDeviceStateInfo 批量查询设备状态信息
 func (u *WarningDetectUsecase) BatchGetDeviceStateInfo(
 	deviceClassID int,
-	option *QueryOption) ([]*v1.DeviceState, error) {
+	option *QueryOption) (states []*v1.DeviceState, count int64, err error) {
 	option.Bucket = conf.Username
-	return u.repo.BatchGetDeviceStateInfo(deviceClassID, option)
+
+	// 依据measurement field的数量对limit和offset进行放缩
+	if option.Limit != 0 {
+		fieldCount := len(u.parser.GetWarningDetectFields(deviceClassID))
+		option.Limit *= fieldCount
+		option.Offset *= fieldCount
+	}
+
+	states, err = u.repo.BatchGetDeviceStateInfo(deviceClassID, option)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// 查询分页时需要的记录总数total
+	if option.Limit != 0 {
+		count, err = u.repo.GetRecordCount(option)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+
+	return states, count, nil
 }
 
 // BatchGetWarning 批量查询警告信息
-func (u *WarningDetectUsecase) BatchGetWarning(option *QueryOption) ([]*utilApi.Warning, error) {
+func (u *WarningDetectUsecase) BatchGetWarning(option *QueryOption) (
+	warnings []*utilApi.Warning, count int64, err error) {
 	// 以<用户名-warning>为名的bucket中保存着警告信息
 	option.Bucket = fmt.Sprintf("%s-warnings", conf.Username)
-	return u.repo.GetWarningMessage(option)
+
+	// 依据measurement field的数量对limit和offset进行放缩
+	// 但由于警告信息固定三条field:start end message，因此需要放缩3倍
+	if option.Limit != 0 {
+		fieldLen := 3
+		option.Limit *= fieldLen
+		option.Offset *= fieldLen
+	}
+
+	warnings, err = u.repo.GetWarningMessage(option)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if option.Limit != 0 {
+		count, err = u.repo.GetRecordCount(option)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+
+	return warnings, count, nil
 }

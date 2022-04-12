@@ -131,6 +131,25 @@ func (r *Repo) StopWarningDetectTask(run *domain.Run) error {
 	return nil
 }
 
+// GetRecordCount 依据查询条件获取记录数
+func (r *Repo) GetRecordCount(option *biz.QueryOption) (int64, error) {
+	option.Limit = 0
+	option.CountQuery = true
+	flux := buildFluxQuery(option)
+
+	queryAPI := r.influxdbClient.QueryAPI(r.influxdbClient.org)
+	tableResult, err := queryAPI.Query(context.Background(), flux)
+	if err != nil {
+		return 0, errors.Newf(
+			500, "Repo_State_Error",
+			"查询记录数量时发生了错误:%v", err)
+	}
+	defer tableResult.Close()
+
+	tableResult.Next()
+	return tableResult.Record().Value().(int64), nil
+}
+
 // BatchGetDeviceStateInfo 批量查询某一类设备的状态信息
 func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOption) ([]*v1.DeviceState, error) {
 	if option.Filter == nil {
@@ -221,7 +240,7 @@ func (r *Repo) BatchGetDeviceWarningDetectField(deviceClassID int, fieldName str
 func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, error) {
 	// 以设备id和设备字段名和设备类别号以及_time作为group key
 	option.GroupBy = append(
-		option.GroupBy, "_measurement", "deviceFieldName", "deviceClassID", "_time")
+		option.GroupBy, "deviceClassID", "_measurement", "deviceFieldName", "_time")
 
 	queryApi := r.influxdbClient.QueryAPI(r.influxdbClient.org)
 	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(option))
@@ -313,6 +332,7 @@ func (r *Repo) SaveWarningMessage(bucket string, warnings ...*utilApi.Warning) e
 func buildFluxQuery(option *biz.QueryOption) string {
 	flux := fmt.Sprintf(`from(bucket: "%s")`, option.Bucket)
 
+	// 选取一定时间范围内的数据
 	if option.Past != 0 {
 		rangeFilter := `|> range(start: -%s)`
 		flux += fmt.Sprintf(rangeFilter, option.Past.String())
@@ -331,6 +351,7 @@ func buildFluxQuery(option *biz.QueryOption) string {
 		flux += `|> range(start: -30m)`
 	}
 
+	// 添加过滤条件
 	if len(option.Filter) != 0 {
 		filterFormat := `|> filter(fn: (r) => %s)`
 		filters := make([]string, 0, len(option.Filter))
@@ -343,13 +364,30 @@ func buildFluxQuery(option *biz.QueryOption) string {
 		flux += fmt.Sprintf(filterFormat, strings.Join(filters, " and "))
 	}
 
-	if len(option.GroupBy) != 0 {
-		format := `|> group(columns: [%s])`
-		group := make([]string, len(option.GroupBy))
-		for i, g := range option.GroupBy {
-			group[i] = fmt.Sprintf(`"%s"`, g)
-		}
+	// 将分组条件进行格式转换
+	group := make([]string, len(option.GroupBy))
+	for i, g := range option.GroupBy {
+		group[i] = fmt.Sprintf(`"%s"`, g)
+	}
 
+	// 分页查询
+	if option.Limit != 0 {
+		// 利用group聚合，然后利用sort将逻辑上视为同一记录的信息排列在一起，
+		// 从而可以利用limit函数进行分页，但是要注意，limit和offset要进行放缩
+
+		// 以分组条件group进行排序，让逻辑上视为一条记录排列在一起以用于分页
+		flux += fmt.Sprintf(
+			`|> group()|> sort(columns: [%s])`, strings.Join(group, ","))
+		// 分页
+		flux += fmt.Sprintf(`|> limit(n: %d,offset: %d)`, option.Limit, option.Offset)
+	}
+
+	// 计数查询，直接利用group聚合后再利用count计数
+	// 注意此时得到的记录数量是measurement的field的数量乘以实际的记录数，因此还要除以field的数量
+	if option.CountQuery {
+		flux += "|> group()|> count()"
+	} else {
+		format := `|> group(columns: [%s])`
 		flux += fmt.Sprintf(format, strings.Join(group, ", "))
 	}
 

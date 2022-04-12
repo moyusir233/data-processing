@@ -56,12 +56,15 @@ func (s *WarningDetectService) BatchGetDeviceStateInfo(ctx context.Context, req 
 		option.Filter = make(map[string]string)
 	}
 
-	states, err := s.warningDetectUsecase.BatchGetDeviceStateInfo(int(req.DeviceClassId), option)
+	option.Limit = int(req.Limit)
+	option.Offset = int(req.Offset)
+
+	states, total, err := s.warningDetectUsecase.BatchGetDeviceStateInfo(int(req.DeviceClassId), option)
 	if err != nil {
 		return nil, err
 	}
 
-	return &pb.BatchGetDeviceStateReply{States: states}, nil
+	return &pb.BatchGetDeviceStateReply{States: states, Total: int32(total)}, nil
 }
 
 func (s *WarningDetectService) BatchGetWarning(ctx context.Context, req *pb.BatchGetWarningRequest) (*pb.BatchGetWarningReply, error) {
@@ -83,12 +86,15 @@ func (s *WarningDetectService) BatchGetWarning(ctx context.Context, req *pb.Batc
 		option.Filter = make(map[string]string)
 	}
 
-	warnings, err := s.warningDetectUsecase.BatchGetWarning(option)
+	option.Limit = int(req.Limit)
+	option.Offset = int(req.Offset)
+
+	warnings, total, err := s.warningDetectUsecase.BatchGetWarning(option)
 	if err != nil {
 		return nil, err
 	}
 
-	return &pb.BatchGetWarningReply{Warnings: warnings}, nil
+	return &pb.BatchGetWarningReply{Warnings: warnings, Total: int32(total)}, nil
 }
 
 func (s *WarningDetectService) ServeWebsocketConnection(w http.ResponseWriter, r *http.Request) error {

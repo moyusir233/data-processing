@@ -70,6 +70,15 @@ paths:
                   description: 查询过滤的条件，可以针对_measurement、_field或tag进行过滤
                   schema:
                     type: string
+                - name: limit
+                  in: query
+                  description: 分页查询参数
+                  schema:
+                    type: string
+                - name: offset
+                  in: query
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -102,6 +111,15 @@ paths:
                   description: 查询过滤的条件，可以针对_measurement、_field或tag进行过滤
                   schema:
                     type: string
+                - name: limit
+                  in: query
+                  description: 分页查询参数
+                  schema:
+                    type: string
+                - name: offset
+                  in: query
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -117,6 +135,9 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/DeviceState'
+                total:
+                    type: integer
+                    format: int32
             description: 设备状态信息批量查询响应
         BatchGetWarningReply:
             properties:
@@ -124,6 +145,9 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/Warning'
+                total:
+                    type: integer
+                    format: int32
             description: 警告消息批量查询响应
         DeviceConfig0:
             properties:
