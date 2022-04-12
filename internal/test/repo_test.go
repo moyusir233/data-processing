@@ -119,11 +119,6 @@ func TestRepo_Influxdb(t *testing.T) {
 				continue
 			}
 
-			// 由于timestamppb保存的时间戳是当做UTC时间保存的，如果希望protobuf的timestamp对象
-			// 解析出来的时间日期时本地时间，则需要对时间进行偏移
-			warning.Start = timestamppb.New(warning.Start.AsTime().Add(8 * time.Hour))
-			warning.End = timestamppb.New(warning.End.AsTime().Add(8 * time.Hour))
-
 			// 序列化为json后再进行比较
 			warningJson, err := protojson.Marshal(warning)
 			if err != nil {

@@ -202,8 +202,7 @@ func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOptio
 		if result[pos].DeviceId == "" {
 			result[pos].DeviceId = record.Measurement()
 			result[pos].DeviceClassId = int32(deviceClassID)
-			// 数据库中的时间为utc时间，需要转换
-			result[pos].Time = timestamppb.New(record.Time().Add(8 * time.Hour))
+			result[pos].Time = timestamppb.New(record.Time())
 			// 解析tag
 			for k, v := range record.Values() {
 				// 除了系统字段、table字段以及deviceClassID字段，其余都视作tag
@@ -242,11 +241,36 @@ func (r *Repo) BatchGetDeviceWarningDetectField(deviceClassID int, fieldName str
 
 	return tableResult, nil
 }
+func (r *Repo) DeleteDeviceStateInfo(bucket string, request *v1.DeleteDeviceStateRequest) error {
+	deleteAPI := r.influxdbClient.DeleteAPI()
+	err := deleteAPI.DeleteWithName(
+		context.Background(), r.influxdbClient.org, bucket,
+		request.Time.AsTime(),
+		request.Time.AsTime().Add(time.Second),
+		fmt.Sprintf(
+			`deviceClassID="%d" AND _measurement="%s"`,
+			request.DeviceClassId, request.DeviceId,
+		),
+	)
+	if err != nil {
+		return errors.Newf(
+			500, "Repo_State_Error",
+			"删除设备状态信息时发生了错误:%v", err)
+	}
+
+	return nil
+}
 
 func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*v1.BatchGetWarningReply_Warning, error) {
 	// 以设备id和设备字段名和设备类别号以及_time作为group key
 	option.GroupBy = append(
 		option.GroupBy, "deviceClassID", "_measurement", "deviceFieldName", "_time")
+
+	// 填充查询的参数，并将关于deviceID的filter转换为对_measurement的filter
+	if deviceID, ok := option.Filter["deviceID"]; ok {
+		delete(option.Filter, "deviceID")
+		option.Filter["_measurement"] = deviceID
+	}
 
 	queryApi := r.influxdbClient.QueryAPI(r.influxdbClient.org)
 	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(option))
@@ -294,7 +318,7 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*v1.BatchGetWarning
 						500, "Repo_State_Error",
 						"解析警告信息的start字段时发生了错误:%v", err)
 				}
-				warnings[pos].Start = timestamppb.New(parse.Add(8 * time.Hour))
+				warnings[pos].Start = timestamppb.New(parse)
 			case "end":
 				parse, err := time.Parse(time.RFC3339, value.(string))
 				if err != nil {
@@ -302,7 +326,7 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*v1.BatchGetWarning
 						500, "Repo_State_Error",
 						"解析警告信息的end字段时发生了错误:%v", err)
 				}
-				warnings[pos].End = timestamppb.New(parse.Add(8 * time.Hour))
+				warnings[pos].End = timestamppb.New(parse)
 			case "message":
 				warnings[pos].Fields["warningMessage"] = value.(string)
 			}
@@ -326,12 +350,80 @@ func (r *Repo) SaveWarningMessage(bucket string, warnings ...*utilApi.Warning) e
 		point.SetTime(w.Start.AsTime().UTC()).
 			AddTag("deviceClassID", strconv.FormatInt(int64(w.DeviceClassId), 10)).
 			AddTag("deviceFieldName", w.DeviceFieldName).
+			AddTag("processed", strconv.FormatBool(w.Processed)).
 			AddField("start", start.Format(time.RFC3339)).
 			AddField("end", end.Format(time.RFC3339)).
 			AddField("message", w.WarningMessage).
 			SortFields().
 			SortTags()
 		writeAPI.WritePoint(point)
+	}
+
+	return nil
+}
+
+func (r *Repo) DeleteWarningMessage(bucket string, request *v1.DeleteWarningRequest) error {
+	deleteAPI := r.influxdbClient.DeleteAPI()
+	err := deleteAPI.DeleteWithName(
+		context.Background(), r.influxdbClient.org, bucket,
+		request.Time.AsTime(),
+		request.Time.AsTime().Add(time.Second),
+		fmt.Sprintf(
+			`deviceClassID="%d" AND _measurement="%s" AND deviceFieldName="%s"`,
+			request.DeviceClassId, request.DeviceId, request.DeviceFieldName,
+		),
+	)
+	if err != nil {
+		return errors.Newf(
+			500, "Repo_State_Error",
+			"删除警告信息时发生了错误:%v", err)
+	}
+
+	return nil
+}
+
+func (r *Repo) UpdateWarningProcessedState(bucket string, request *v1.UpdateWarningRequest) error {
+	start := request.Time.AsTime()
+	stop := request.Time.AsTime().Add(time.Second)
+	warning, err := r.GetWarningMessage(&biz.QueryOption{
+		Bucket: bucket,
+		Start:  &start,
+		Stop:   &stop,
+		Filter: map[string]string{
+			"deviceClassID":   strconv.Itoa(int(request.DeviceClassId)),
+			"deviceID":        request.DeviceId,
+			"deviceFieldName": request.DeviceFieldName,
+		},
+		GroupCount: 3,
+	})
+	if err != nil {
+		return err
+	}
+	if len(warning) == 0 {
+		return nil
+	}
+
+	err = r.DeleteWarningMessage(bucket, &v1.DeleteWarningRequest{
+		DeviceClassId:   request.DeviceClassId,
+		DeviceId:        request.DeviceId,
+		DeviceFieldName: request.DeviceFieldName,
+		Time:            request.Time,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = r.SaveWarningMessage(bucket, &utilApi.Warning{
+		DeviceClassId:   request.DeviceClassId,
+		DeviceId:        request.DeviceId,
+		DeviceFieldName: request.DeviceFieldName,
+		WarningMessage:  warning[0].Fields["warningMessage"],
+		Start:           warning[0].Start,
+		End:             warning[0].End,
+		Processed:       request.Processed,
+	})
+	if err != nil {
+		return err
 	}
 
 	return nil

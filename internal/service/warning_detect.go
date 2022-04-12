@@ -67,6 +67,15 @@ func (s *WarningDetectService) BatchGetDeviceStateInfo(ctx context.Context, req 
 	return &pb.BatchGetDeviceStateReply{States: states, Total: int32(total)}, nil
 }
 
+func (s *WarningDetectService) DeleteDeviceStateInfo(ctx context.Context, request *pb.DeleteDeviceStateRequest) (*pb.DeleteDeviceStateReply, error) {
+	err := s.warningDetectUsecase.DeleteDeviceState(request)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.DeleteDeviceStateReply{Success: true}, nil
+}
+
 func (s *WarningDetectService) BatchGetWarning(ctx context.Context, req *pb.BatchGetWarningRequest) (*pb.BatchGetWarningReply, error) {
 	option := new(biz.QueryOption)
 	if req.Past != nil && req.Past.AsDuration() != 0 {
@@ -95,6 +104,24 @@ func (s *WarningDetectService) BatchGetWarning(ctx context.Context, req *pb.Batc
 	}
 
 	return &pb.BatchGetWarningReply{Warnings: warnings, Total: int32(total)}, nil
+}
+
+func (s *WarningDetectService) DeleteWarning(ctx context.Context, request *pb.DeleteWarningRequest) (*pb.DeleteWarningReply, error) {
+	err := s.warningDetectUsecase.DeleteWarningMessage(request)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.DeleteWarningReply{Success: true}, nil
+}
+
+func (s *WarningDetectService) UpdateWarning(ctx context.Context, request *pb.UpdateWarningRequest) (*pb.UpdateWarningReply, error) {
+	err := s.warningDetectUsecase.UpdateWarningProcessedState(request)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.UpdateWarningReply{Success: true}, nil
 }
 
 func (s *WarningDetectService) ServeWebsocketConnection(w http.ResponseWriter, r *http.Request) error {

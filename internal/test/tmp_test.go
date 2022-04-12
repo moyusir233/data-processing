@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/go-kratos/kratos/v2/encoding"
 	"github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"sync"
 	"testing"
@@ -42,8 +43,22 @@ func TestSync_RWMutex(t *testing.T) {
 	fmt.Println(time.Since(begin))
 }
 func TestWriteInfluxdb(t *testing.T) {
-	client := influxdb2.NewClient("http://localhost:8086", "L5Uo-KWQ1GvJ3gVV00Sc6TRrxTSnIVxiOOWcL5t1QFv42kP2cQMoPWPJSrWOWxv-t-4IffAA5Jkj9LXt34hVRQ==")
+	client := influxdb2.NewClient("http://localhost:8086", "gp-YDGH5_yoUym71TnS3XxLp3WpCQ_9IvMZDvDmE3R0RFDzbC8fZ5eC4glgzhy0VX73CxvRGW1kZfJJcT2NByA==")
 	defer client.Close()
+
+	writeAPI := client.WriteAPI("test", "test")
+	point := write.NewPoint(
+		"test",
+		map[string]string{"tmp_tag": "true"},
+		map[string]interface{}{"tmp_field": 1.0},
+		time.Now(),
+	).SortTags().SortFields()
+	writeAPI.WritePoint(point)
+	writeAPI.Flush()
+
+	point.AddTag("tmp_tag", "false")
+	writeAPI.WritePoint(point)
+	writeAPI.Flush()
 
 	//var states []v1.DeviceState1
 	//tags := map[string]string{"deviceClassID": "1"}
@@ -72,24 +87,24 @@ func TestWriteInfluxdb(t *testing.T) {
 	//	states = append(states, state)
 	//}
 
-	queryAPI := client.QueryAPI("test")
-	flux := `from(bucket: "test")
-				  |> range(start: -2h)
-				  |> filter(fn: (r) => r["deviceClassID"] == "1")
-				  |> group()
-				  |> count()`
-
-	tableResult, err := queryAPI.Query(context.Background(), flux)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tableResult.Close()
-
-	for tableResult.Next() {
-		value := tableResult.Record().Value()
-		fmt.Printf("value: %T %v\n", value, value)
-		fmt.Println(tableResult.Record().String())
-	}
+	//queryAPI := client.QueryAPI("test")
+	//flux := `from(bucket: "test")
+	//			  |> range(start: -2h)
+	//			  |> filter(fn: (r) => r["deviceClassID"] == "1")
+	//			  |> group()
+	//			  |> count()`
+	//
+	//tableResult, err := queryAPI.Query(context.Background(), flux)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//defer tableResult.Close()
+	//
+	//for tableResult.Next() {
+	//	value := tableResult.Record().Value()
+	//	fmt.Printf("value: %T %v\n", value, value)
+	//	fmt.Println(tableResult.Record().String())
+	//}
 
 }
 
@@ -110,9 +125,18 @@ func TestClearInfluxdb(t *testing.T) {
 }
 
 func TestTmp(t *testing.T) {
-	marshal, err := encoding.GetCodec("json").Marshal(timestamppb.New(time.Now().Add(8 * time.Hour)))
+	now := timestamppb.Now()
+	codec := encoding.GetCodec("json")
+	marshal, err := codec.Marshal(now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	fmt.Println(string(marshal))
+
+	newTime := new(timestamppb.Timestamp)
+	err = codec.Unmarshal(marshal, newTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(newTime.AsTime().UTC().Format(time.RFC3339))
 }

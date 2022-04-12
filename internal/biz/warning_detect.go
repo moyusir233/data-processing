@@ -46,10 +46,16 @@ type WarningDetectRepo interface {
 	BatchGetDeviceStateInfo(deviceClassID int, option *QueryOption) ([]*v1.DeviceState, error)
 	// BatchGetDeviceWarningDetectField 批量查询某一类设备某个字段的信息，用于预警检测
 	BatchGetDeviceWarningDetectField(deviceClassID int, fieldName string, option *QueryOption) (*api.QueryTableResult, error)
+	// DeleteDeviceStateInfo 删除设备状态信息
+	DeleteDeviceStateInfo(bucket string, request *v1.DeleteDeviceStateRequest) error
 	// GetWarningMessage 查询当前存储在数据库中的警告信息
 	GetWarningMessage(option *QueryOption) ([]*v1.BatchGetWarningReply_Warning, error)
 	// SaveWarningMessage 保存警告信息
 	SaveWarningMessage(bucket string, warnings ...*utilApi.Warning) error
+	// DeleteWarningMessage 删除警告信息
+	DeleteWarningMessage(bucket string, request *v1.DeleteWarningRequest) error
+	// UpdateWarningProcessedState 更新警告信息处理状态
+	UpdateWarningProcessedState(bucket string, request *v1.UpdateWarningRequest) error
 	// GetRecordCount 依据查询条件获取记录数
 	GetRecordCount(option *QueryOption) (int64, error)
 	// RunWarningDetectTask 依据预警字段注册的预警规则，创建并运行下采样设备状态信息数据的task
@@ -427,6 +433,11 @@ func (u *WarningDetectUsecase) BatchGetDeviceStateInfo(
 	return states, count, nil
 }
 
+// DeleteDeviceState 删除设备状态信息
+func (u *WarningDetectUsecase) DeleteDeviceState(request *v1.DeleteDeviceStateRequest) error {
+	return u.repo.DeleteDeviceStateInfo(conf.Username, request)
+}
+
 // BatchGetWarning 批量查询警告信息
 func (u *WarningDetectUsecase) BatchGetWarning(option *QueryOption) (
 	warnings []*v1.BatchGetWarningReply_Warning, count int64, err error) {
@@ -456,4 +467,16 @@ func (u *WarningDetectUsecase) BatchGetWarning(option *QueryOption) (
 	}
 
 	return warnings, count, nil
+}
+
+// DeleteWarningMessage 删除警告
+func (u *WarningDetectUsecase) DeleteWarningMessage(request *v1.DeleteWarningRequest) error {
+	bucket := fmt.Sprintf("%s-warnings", conf.Username)
+	return u.repo.DeleteWarningMessage(bucket, request)
+}
+
+// UpdateWarningProcessedState 更新警告信息处理状态
+func (u *WarningDetectUsecase) UpdateWarningProcessedState(request *v1.UpdateWarningRequest) error {
+	bucket := fmt.Sprintf("%s-warnings", conf.Username)
+	return u.repo.UpdateWarningProcessedState(bucket, request)
 }
