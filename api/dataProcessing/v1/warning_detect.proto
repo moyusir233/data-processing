@@ -5,7 +5,6 @@ package api.dataProcessing.v1;
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
-import "util/api/util/v1/general.proto";
 
 option go_package = "gitee.com/moyusir/data-processing/api/dataProcessing/v1;v1";
 option java_multiple_files = true;
@@ -71,7 +70,15 @@ message BatchGetWarningRequest {
 }
 // 警告消息批量查询响应
 message BatchGetWarningReply {
-  repeated api.util.v1.Warning warnings = 1;
+  message Warning{
+    int32 device_class_id = 1;
+    string device_id = 2;
+    google.protobuf.Timestamp start = 3;
+    google.protobuf.Timestamp end = 4;
+    map<string, string> tags = 5;
+    map<string, string> fields = 6;
+  }
+  repeated Warning warnings = 1;
   int32 total = 2;
 }
 

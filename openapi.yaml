@@ -175,21 +175,3 @@ components:
                     $ref: '#/components/schemas/FieldsEntry'
                 tags:
                     type: object
-        Warning:
-            properties:
-                device_id:
-                    type: string
-                    description: 引发告警的设备的id
-                device_field_name:
-                    type: string
-                    description: 设备字段
-                warning_rule:
-                    $ref: '#/components/schemas/WarningRule'
-                start:
-                    type: string
-                    description: 告警出现的时间范围
-                    format: RFC3339
-                end:
-                    type: string
-                    format: RFC3339
-            description: 警告信息

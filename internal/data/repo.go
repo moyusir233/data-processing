@@ -243,7 +243,7 @@ func (r *Repo) BatchGetDeviceWarningDetectField(deviceClassID int, fieldName str
 	return tableResult, nil
 }
 
-func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, error) {
+func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*v1.BatchGetWarningReply_Warning, error) {
 	// 以设备id和设备字段名和设备类别号以及_time作为group key
 	option.GroupBy = append(
 		option.GroupBy, "deviceClassID", "_measurement", "deviceFieldName", "_time")
@@ -256,18 +256,21 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, e
 			"批量查询警告信息时发生了错误:%v", err)
 	}
 
-	var warnings []*utilApi.Warning
+	var warnings []*v1.BatchGetWarningReply_Warning
 	for i := 0; tableResult.Next(); i++ {
 		pos := i / option.GroupCount
 		// 达到容量上限，则需要扩容
 		if pos == len(warnings) {
-			warnings = append(warnings, &utilApi.Warning{})
+			warnings = append(
+				warnings, &v1.BatchGetWarningReply_Warning{
+					Tags:   make(map[string]string),
+					Fields: make(map[string]string),
+				})
 		}
 
 		record := tableResult.Record()
 		if warnings[pos].DeviceId == "" {
-			warnings[pos].DeviceId = record.Measurement()
-			warnings[pos].DeviceFieldName = record.ValueByKey("deviceFieldName").(string)
+			// 解析tag字段，包括deviceId、deviceClassId、deviceFieldName
 			deviceClassID, err := strconv.Atoi(record.ValueByKey("deviceClassID").(string))
 			if err != nil {
 				return nil, errors.Newf(
@@ -275,6 +278,8 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, e
 					"批量查询警告信息时发生了错误:%v", err)
 			}
 			warnings[pos].DeviceClassId = int32(deviceClassID)
+			warnings[pos].DeviceId = record.Measurement()
+			warnings[pos].Tags["deviceFieldName"] = record.ValueByKey("deviceFieldName").(string)
 		}
 
 		// 解析field，field包括start、end以及警告信息message
@@ -299,7 +304,7 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, e
 				}
 				warnings[pos].End = timestamppb.New(parse.Add(8 * time.Hour))
 			case "message":
-				warnings[pos].WarningMessage = value.(string)
+				warnings[pos].Fields["warningMessage"] = value.(string)
 			}
 		}
 	}

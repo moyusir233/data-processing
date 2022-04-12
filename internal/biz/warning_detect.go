@@ -47,7 +47,7 @@ type WarningDetectRepo interface {
 	// BatchGetDeviceWarningDetectField 批量查询某一类设备某个字段的信息，用于预警检测
 	BatchGetDeviceWarningDetectField(deviceClassID int, fieldName string, option *QueryOption) (*api.QueryTableResult, error)
 	// GetWarningMessage 查询当前存储在数据库中的警告信息
-	GetWarningMessage(option *QueryOption) ([]*utilApi.Warning, error)
+	GetWarningMessage(option *QueryOption) ([]*v1.BatchGetWarningReply_Warning, error)
 	// SaveWarningMessage 保存警告信息
 	SaveWarningMessage(bucket string, warnings ...*utilApi.Warning) error
 	// GetRecordCount 依据查询条件获取记录数
@@ -429,7 +429,7 @@ func (u *WarningDetectUsecase) BatchGetDeviceStateInfo(
 
 // BatchGetWarning 批量查询警告信息
 func (u *WarningDetectUsecase) BatchGetWarning(option *QueryOption) (
-	warnings []*utilApi.Warning, count int64, err error) {
+	warnings []*v1.BatchGetWarningReply_Warning, count int64, err error) {
 	// 以<用户名-warning>为名的bucket中保存着警告信息
 	option.Bucket = fmt.Sprintf("%s-warnings", conf.Username)
 
