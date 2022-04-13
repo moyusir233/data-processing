@@ -3,10 +3,8 @@ package test
 import (
 	"context"
 	"fmt"
-	"github.com/go-kratos/kratos/v2/encoding"
 	"github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"sync"
 	"testing"
 	"time"
@@ -125,18 +123,14 @@ func TestClearInfluxdb(t *testing.T) {
 }
 
 func TestTmp(t *testing.T) {
-	now := timestamppb.Now()
-	codec := encoding.GetCodec("json")
-	marshal, err := codec.Marshal(now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fmt.Println(string(marshal))
+	tmp := &struct {
+		Nums []int
+	}{}
+	appendFunc := func(s struct{ Nums []int }, num int) {
+		s.Nums = append(s.Nums, num)
+		fmt.Println(s)
 
-	newTime := new(timestamppb.Timestamp)
-	err = codec.Unmarshal(marshal, newTime)
-	if err != nil {
-		t.Fatal(err)
 	}
-	fmt.Println(newTime.AsTime().UTC().Format(time.RFC3339))
+	appendFunc(*tmp, 1)
+	fmt.Println(*tmp)
 }

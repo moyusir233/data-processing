@@ -43,13 +43,13 @@ type WarningDetectUsecase struct {
 
 type WarningDetectRepo interface {
 	// BatchGetDeviceStateInfo 批量查询某一类设备的状态信息
-	BatchGetDeviceStateInfo(deviceClassID int, option *QueryOption) ([]*v1.DeviceState, error)
+	BatchGetDeviceStateInfo(deviceClassID int, option QueryOption) ([]*v1.DeviceState, error)
 	// BatchGetDeviceWarningDetectField 批量查询某一类设备某个字段的信息，用于预警检测
-	BatchGetDeviceWarningDetectField(deviceClassID int, fieldName string, option *QueryOption) (*api.QueryTableResult, error)
+	BatchGetDeviceWarningDetectField(deviceClassID int, fieldName string, option QueryOption) (*api.QueryTableResult, error)
 	// DeleteDeviceStateInfo 删除设备状态信息
 	DeleteDeviceStateInfo(bucket string, request *v1.DeleteDeviceStateRequest) error
 	// GetWarningMessage 查询当前存储在数据库中的警告信息
-	GetWarningMessage(option *QueryOption) ([]*v1.BatchGetWarningReply_Warning, error)
+	GetWarningMessage(option QueryOption) ([]*v1.BatchGetWarningReply_Warning, error)
 	// SaveWarningMessage 保存警告信息
 	SaveWarningMessage(bucket string, warnings ...*utilApi.Warning) error
 	// DeleteWarningMessage 删除警告信息
@@ -57,7 +57,7 @@ type WarningDetectRepo interface {
 	// UpdateWarningProcessedState 更新警告信息处理状态
 	UpdateWarningProcessedState(bucket string, request *v1.UpdateWarningRequest) error
 	// GetRecordCount 依据查询条件获取记录数
-	GetRecordCount(option *QueryOption) (int64, error)
+	GetRecordCount(option QueryOption) (int64, error)
 	// RunWarningDetectTask 依据预警字段注册的预警规则，创建并运行下采样设备状态信息数据的task
 	RunWarningDetectTask(config *WarningDetectTaskConfig) (*domain.Run, error)
 	// StopWarningDetectTask 关闭指定task的运行
@@ -180,7 +180,7 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 	// 避免访问nil map而实例化的空map
 	m := make(map[string]string)
 	// 查询用的option
-	option := &QueryOption{
+	option := QueryOption{
 		Bucket: taskConf.TargetBucket,
 		Past:   every,
 		Filter: m,
@@ -417,14 +417,14 @@ func (u *WarningDetectUsecase) BatchGetDeviceStateInfo(
 		option.Offset *= fieldCount
 	}
 
-	states, err = u.repo.BatchGetDeviceStateInfo(deviceClassID, option)
+	states, err = u.repo.BatchGetDeviceStateInfo(deviceClassID, *option)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	// 查询分页时需要的记录总数total
 	if option.Limit != 0 {
-		count, err = u.repo.GetRecordCount(option)
+		count, err = u.repo.GetRecordCount(*option)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -454,13 +454,13 @@ func (u *WarningDetectUsecase) BatchGetWarning(option *QueryOption) (
 		option.Offset *= fieldCount
 	}
 
-	warnings, err = u.repo.GetWarningMessage(option)
+	warnings, err = u.repo.GetWarningMessage(*option)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	if option.Limit != 0 {
-		count, err = u.repo.GetRecordCount(option)
+		count, err = u.repo.GetRecordCount(*option)
 		if err != nil {
 			return nil, 0, err
 		}

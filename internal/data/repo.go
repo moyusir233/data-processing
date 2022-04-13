@@ -138,10 +138,10 @@ func (r *Repo) StopWarningDetectTask(run *domain.Run) error {
 }
 
 // GetRecordCount 依据查询条件获取记录数
-func (r *Repo) GetRecordCount(option *biz.QueryOption) (int64, error) {
+func (r *Repo) GetRecordCount(option biz.QueryOption) (int64, error) {
 	option.Limit = 0
 	option.CountQuery = true
-	flux := buildFluxQuery(option)
+	flux := buildFluxQuery(&option)
 
 	queryAPI := r.influxdbClient.QueryAPI(r.influxdbClient.org)
 	tableResult, err := queryAPI.Query(context.Background(), flux)
@@ -157,7 +157,7 @@ func (r *Repo) GetRecordCount(option *biz.QueryOption) (int64, error) {
 }
 
 // BatchGetDeviceStateInfo 批量查询某一类设备的状态信息
-func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOption) ([]*v1.DeviceState, error) {
+func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option biz.QueryOption) ([]*v1.DeviceState, error) {
 	if option.Filter == nil {
 		option.Filter = make(map[string]string)
 	}
@@ -175,7 +175,7 @@ func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOptio
 	option.Filter["deviceClassID"] = strconv.Itoa(deviceClassID)
 
 	queryApi := r.influxdbClient.QueryAPI(r.influxdbClient.org)
-	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(option))
+	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(&option))
 	if err != nil {
 		return nil, errors.Newf(
 			500, "Repo_State_Error",
@@ -222,7 +222,7 @@ func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOptio
 }
 
 // BatchGetDeviceWarningDetectField 批量查询某一类设备某个字段的信息
-func (r *Repo) BatchGetDeviceWarningDetectField(deviceClassID int, fieldName string, option *biz.QueryOption) (*api.QueryTableResult, error) {
+func (r *Repo) BatchGetDeviceWarningDetectField(deviceClassID int, fieldName string, option biz.QueryOption) (*api.QueryTableResult, error) {
 	if option.Filter == nil {
 		option.Filter = make(map[string]string)
 	}
@@ -232,7 +232,7 @@ func (r *Repo) BatchGetDeviceWarningDetectField(deviceClassID int, fieldName str
 	option.Filter["_field"] = fieldName
 
 	queryApi := r.influxdbClient.QueryAPI(r.influxdbClient.org)
-	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(option))
+	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(&option))
 	if err != nil {
 		return nil, errors.Newf(
 			500, "Repo_State_Error",
@@ -261,7 +261,7 @@ func (r *Repo) DeleteDeviceStateInfo(bucket string, request *v1.DeleteDeviceStat
 	return nil
 }
 
-func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*v1.BatchGetWarningReply_Warning, error) {
+func (r *Repo) GetWarningMessage(option biz.QueryOption) ([]*v1.BatchGetWarningReply_Warning, error) {
 	// 以设备id和设备字段名和设备类别号以及_time作为group key
 	option.GroupBy = append(
 		option.GroupBy, "deviceClassID", "_measurement", "deviceFieldName", "_time")
@@ -273,7 +273,7 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*v1.BatchGetWarning
 	}
 
 	queryApi := r.influxdbClient.QueryAPI(r.influxdbClient.org)
-	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(option))
+	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(&option))
 	if err != nil {
 		return nil, errors.Newf(
 			500, "Repo_State_Error",
@@ -304,6 +304,7 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*v1.BatchGetWarning
 			warnings[pos].DeviceClassId = int32(deviceClassID)
 			warnings[pos].DeviceId = record.Measurement()
 			warnings[pos].Tags["deviceFieldName"] = record.ValueByKey("deviceFieldName").(string)
+			warnings[pos].Tags["processed"] = record.ValueByKey("processed").(string)
 		}
 
 		// 解析field，field包括start、end以及警告信息message
@@ -312,7 +313,7 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*v1.BatchGetWarning
 		if field != nil {
 			switch field.(string) {
 			case "start":
-				parse, err := time.Parse(time.RFC3339, value.(string))
+				parse, err := time.Parse(time.RFC3339Nano, value.(string))
 				if err != nil {
 					return nil, errors.Newf(
 						500, "Repo_State_Error",
@@ -320,7 +321,7 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*v1.BatchGetWarning
 				}
 				warnings[pos].Start = timestamppb.New(parse)
 			case "end":
-				parse, err := time.Parse(time.RFC3339, value.(string))
+				parse, err := time.Parse(time.RFC3339Nano, value.(string))
 				if err != nil {
 					return nil, errors.Newf(
 						500, "Repo_State_Error",
@@ -351,8 +352,8 @@ func (r *Repo) SaveWarningMessage(bucket string, warnings ...*utilApi.Warning) e
 			AddTag("deviceClassID", strconv.FormatInt(int64(w.DeviceClassId), 10)).
 			AddTag("deviceFieldName", w.DeviceFieldName).
 			AddTag("processed", strconv.FormatBool(w.Processed)).
-			AddField("start", start.Format(time.RFC3339)).
-			AddField("end", end.Format(time.RFC3339)).
+			AddField("start", start).
+			AddField("end", end).
 			AddField("message", w.WarningMessage).
 			SortFields().
 			SortTags()
@@ -385,7 +386,7 @@ func (r *Repo) DeleteWarningMessage(bucket string, request *v1.DeleteWarningRequ
 func (r *Repo) UpdateWarningProcessedState(bucket string, request *v1.UpdateWarningRequest) error {
 	start := request.Time.AsTime()
 	stop := request.Time.AsTime().Add(time.Second)
-	warning, err := r.GetWarningMessage(&biz.QueryOption{
+	warning, err := r.GetWarningMessage(biz.QueryOption{
 		Bucket: bucket,
 		Start:  &start,
 		Stop:   &stop,
@@ -487,10 +488,6 @@ func buildFluxQuery(option *biz.QueryOption) string {
 	if option.CountQuery {
 		flux += "|> group()|> count()"
 	}
-	//else {
-	//	format := `|> group(columns: [%s])`
-	//	flux += fmt.Sprintf(format, strings.Join(group, ", "))
-	//}
 
 	return flux
 }
