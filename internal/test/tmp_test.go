@@ -123,14 +123,26 @@ func TestClearInfluxdb(t *testing.T) {
 }
 
 func TestTmp(t *testing.T) {
-	tmp := &struct {
-		Nums []int
-	}{}
-	appendFunc := func(s struct{ Nums []int }, num int) {
-		s.Nums = append(s.Nums, num)
-		fmt.Println(s)
+	// Create a client
+	// You can generate an API Token from the "API Tokens Tab" in the UI
+	client := influxdb2.NewClient("http://localhost:8086", "OSi25i-dEKk6L9hqSROncYFATFE2jRnxHiSR9ERV26fEQLnS-H3FZBKKRDnkk6Ic6VP0Vg5HTsOGGWSPATT2-g==")
+	// always close client at the end
+	defer client.Close()
 
+	queryAPI := client.QueryAPI("test")
+	flux := `from(bucket: "test")
+			  |> range(start: -2h)
+			  |> filter(fn: (r) => r["deviceClassID"] == "1")
+			  |> group()
+              |> count()`
+
+	tableResult, err := queryAPI.Query(context.Background(), flux)
+	if err != nil {
+		t.Fatal(err)
 	}
-	appendFunc(*tmp, 1)
-	fmt.Println(*tmp)
+	defer tableResult.Close()
+
+	for tableResult.Next() {
+		t.Logf("%v", tableResult.Record())
+	}
 }

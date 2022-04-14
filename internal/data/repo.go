@@ -152,7 +152,9 @@ func (r *Repo) GetRecordCount(option biz.QueryOption) (int64, error) {
 	}
 	defer tableResult.Close()
 
-	tableResult.Next()
+	if !tableResult.Next() {
+		return 0, nil
+	}
 	return tableResult.Record().Value().(int64), nil
 }
 
