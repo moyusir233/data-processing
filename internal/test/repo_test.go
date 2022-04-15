@@ -26,7 +26,7 @@ func TestRepo_Influxdb(t *testing.T) {
 	}
 	bootstrap.Data.Influxdb.ServerUrl = "http://localhost:8086"
 	bootstrap.Data.Influxdb.AuthToken =
-		"OfGx9TnWHtKqCrbwgrwWwUc4Wa8SxjsErKzM6BCqArnqsLAjkYaJlA3RxO_g08QLqsFpqqoiG9s3W60XwadUMg=="
+		"33124V3gfLPi2wy07KIJvPSQdIey9ogLYh6AHhtjwKJgyg1Xguy-ApjUh4VWcZUw6jCCfinxTla_uZdHxIWaEw=="
 	initBucket := "test"
 
 	redisData := &data.RedisData{}
@@ -103,6 +103,8 @@ func TestRepo_Influxdb(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		// 等待写入
+		time.Sleep(time.Second)
 		// 测试分页查询
 		stop := now.Add(10 * time.Minute)
 		option := &biz.QueryOption{
@@ -140,10 +142,10 @@ func TestRepo_Influxdb(t *testing.T) {
 			case warning.DeviceClassId != msg.DeviceClassId:
 				t.Error("设备类别id不同")
 				equal = false
-			case !proto.Equal(warning.Start, msg.Start):
+			case warning.Start.AsTime().Format(time.RFC3339) != msg.Start.AsTime().Format(time.RFC3339):
 				t.Error("警告起始时间不同")
 				equal = false
-			case !proto.Equal(warning.End, msg.End):
+			case warning.End.AsTime().Format(time.RFC3339) != msg.End.AsTime().Format(time.RFC3339):
 				t.Error("警告结束时间不同")
 				equal = false
 			case warning.DeviceFieldName != msg.Tags["deviceFieldName"]:
@@ -264,6 +266,8 @@ func TestRepo_Influxdb(t *testing.T) {
 		writeAPI.Flush()
 
 		// 查询，检测写入是否成功
+		// 等待写入
+		time.Sleep(time.Second)
 		option := &biz.QueryOption{
 			Bucket:     initBucket,
 			Past:       time.Hour,
@@ -277,8 +281,9 @@ func TestRepo_Influxdb(t *testing.T) {
 			t.Fatal(err)
 		}
 		if len(info) != 1 {
-			t.Fatal("查询到的设备状态数量错误")
+			t.Fatalf("查询到的设备状态数量错误:%d", len(info))
 		}
+		t.Log(info[0])
 
 		// 删除设备状态
 		err = repo.DeleteDeviceStateInfo(initBucket, &v1.DeleteDeviceStateRequest{

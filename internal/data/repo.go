@@ -207,8 +207,8 @@ func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option biz.QueryOption
 			result[pos].Time = timestamppb.New(record.Time())
 			// 解析tag
 			for k, v := range record.Values() {
-				// 除了系统字段、table字段以及deviceClassID字段，其余都视作tag
-				if !strings.HasPrefix(k, "_") && k != "deviceClassID" && k != "table" {
+				// 除了系统字段、table字段、result字段以及deviceClassID字段，其余都视作tag
+				if !strings.HasPrefix(k, "_") && k != "deviceClassID" && k != "table" && k != "result" {
 					result[pos].Tags[k] = fmt.Sprintf("%v", v)
 				}
 			}
