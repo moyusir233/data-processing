@@ -141,6 +141,9 @@ func (r *Repo) StopWarningDetectTask(run *domain.Run) error {
 func (r *Repo) GetRecordCount(option biz.QueryOption) (int64, error) {
 	option.Limit = 0
 	option.CountQuery = true
+	if option.GroupCount == 0 {
+		option.GroupCount = 1
+	}
 	flux := buildFluxQuery(&option)
 
 	queryAPI := r.influxdbClient.QueryAPI(r.influxdbClient.org)
@@ -155,7 +158,8 @@ func (r *Repo) GetRecordCount(option biz.QueryOption) (int64, error) {
 	if !tableResult.Next() {
 		return 0, nil
 	}
-	return tableResult.Record().Value().(int64), nil
+	// 依据GroupCount,将查询得到的记录数量分组
+	return tableResult.Record().Value().(int64) / int64(option.GroupCount), nil
 }
 
 // BatchGetDeviceStateInfo 批量查询某一类设备的状态信息

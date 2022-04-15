@@ -169,8 +169,8 @@ func TestRepo_Influxdb(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if int(count/3) != len(warnings) {
-			t.Fatalf("查询到的记录数量与期望的不符合:%d,%d", count/3, len(warnings))
+		if int(count) != len(warnings) {
+			t.Fatalf("查询到的记录数量与期望的不符合:%d,%d", count, len(warnings))
 		} else {
 			t.Log("查询到的记录数量正确")
 		}
