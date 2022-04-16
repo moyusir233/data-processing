@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb-client-go/v2/api"
 	"github.com/influxdata/influxdb-client-go/v2/domain"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"sync"
 	"time"
@@ -312,7 +313,15 @@ func (u *WarningDetectUsecase) warningPush(conn *websocket.Conn, node *warningPu
 		case <-u.ctx.Done():
 			return
 		case warning = <-node.warningChannel:
-			err := conn.WriteJSON(warning)
+			marshal, err := protojson.Marshal(warning)
+			if err != nil {
+				u.logger.Error(errors.Newf(500, "Biz_State_Error",
+					"将警告信息序列化为json时发生了错误:%v", err,
+				))
+				return
+			}
+
+			err = conn.WriteMessage(websocket.TextMessage, marshal)
 			// TODO 考虑错误处理
 			if err != nil {
 				u.logger.Error(errors.Newf(500, "Biz_State_Error",
