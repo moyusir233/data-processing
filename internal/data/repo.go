@@ -186,11 +186,6 @@ func (r *Repo) GetRecordCount(option biz.QueryOption) (int64, error) {
 
 // BatchGetDeviceStateInfo 批量查询某一类设备的状态信息，用于预警检测中
 func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option biz.QueryOption) ([]*v1.DeviceState, error) {
-	// 为了配合task的offset，这里查询需要延迟执行
-	if duration, err := time.ParseDuration(r.influxdbClient.offset); err == nil {
-		time.Sleep(duration)
-	}
-
 	if option.Filter == nil {
 		option.Filter = make(map[string]string)
 	}

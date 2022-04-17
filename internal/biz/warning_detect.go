@@ -181,13 +181,13 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 	// 避免访问nil map而实例化的空map
 	m := make(map[string]string)
 	// 查询用的option
+	// 每次查询目前最新下采样状态数据之后的所有采样数据，以避免出现数据检测的遗漏
+	newestTime := time.Time{}
 	option := QueryOption{
 		Bucket: taskConf.TargetBucket,
 		Filter: m,
+		Start:  &newestTime,
 	}
-	var (
-		now, startTime, stopTime time.Time
-	)
 
 	for {
 		select {
@@ -196,12 +196,6 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 		case <-ticker.C:
 			// 调用repo层函数进行查询
 			// TODO 考虑错误处理
-			now = time.Now()
-			startTime = now.Add(-1 * every)
-			stopTime = time.Now()
-			option.Start = &startTime
-			option.Stop = &stopTime
-
 			tableResult, err := u.repo.BatchGetDeviceWarningDetectField(deviceClassID, field.Name, option)
 			if err != nil {
 				u.logger.Error(err)
@@ -211,6 +205,13 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 			// 依据解析注册信息得到的预警规则进行预警检测
 			for tableResult.Next() {
 				record := tableResult.Record()
+				// 只对没有检测过的最新的记录进行检测
+				if t := record.Time(); t.After(newestTime) {
+					newestTime = t
+				} else {
+					continue
+				}
+
 				value := record.Value().(float64)
 				if field.Func(value) {
 					u.logger.Infof("检测到了违反预警规则的设备状态信息:%v", record.String())
