@@ -183,9 +183,12 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 	// 查询用的option
 	option := QueryOption{
 		Bucket: taskConf.TargetBucket,
-		Past:   every,
 		Filter: m,
 	}
+	var (
+		now, startTime, stopTime time.Time
+	)
+
 	for {
 		select {
 		case <-u.ctx.Done():
@@ -193,6 +196,12 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 		case <-ticker.C:
 			// 调用repo层函数进行查询
 			// TODO 考虑错误处理
+			now = time.Now()
+			startTime = now.Add(-1 * every)
+			stopTime = time.Now()
+			option.Start = &startTime
+			option.Stop = &stopTime
+
 			tableResult, err := u.repo.BatchGetDeviceWarningDetectField(deviceClassID, field.Name, option)
 			if err != nil {
 				u.logger.Error(err)

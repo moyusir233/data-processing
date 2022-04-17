@@ -42,6 +42,8 @@ message Data {
         string auth_token=2;
         // influxdb中用户的标识信息 organization
         string org=3;
+        // 启动task时的offset，应该由网络传输延迟以及记录写入时间等因素决定
+        google.protobuf.Duration task_offset=4;
     }
     Redis redis = 1;
     Influxdb influxdb = 2;

@@ -118,7 +118,29 @@ func (r *Repo) RunWarningDetectTask(config *biz.WarningDetectTaskConfig) (*domai
 			"启动influx task时发生了错误:%v", err)
 	}
 
-	return tasksAPI.RunManually(context.Background(), task)
+	// 为task添加offset
+	task.Offset = &r.influxdbClient.offset
+	updateTask, err := tasksAPI.UpdateTask(context.Background(), task)
+	if err != nil {
+		if updateTask != nil {
+			tasksAPI.DeleteTask(context.Background(), task)
+		}
+		return nil, errors.Newf(
+			500, "Repo_State_Error",
+			"更新influx task时发生了错误:%v", err)
+	}
+
+	run, err := tasksAPI.RunManually(context.Background(), updateTask)
+	if err != nil {
+		if updateTask != nil {
+			tasksAPI.DeleteTask(context.Background(), task)
+		}
+		return nil, errors.Newf(
+			500, "Repo_State_Error",
+			"启动influx task时发生了错误:%v", err)
+	}
+
+	return run, nil
 }
 
 // StopWarningDetectTask 停止运行指定的task
@@ -162,8 +184,13 @@ func (r *Repo) GetRecordCount(option biz.QueryOption) (int64, error) {
 	return tableResult.Record().Value().(int64) / int64(option.GroupCount), nil
 }
 
-// BatchGetDeviceStateInfo 批量查询某一类设备的状态信息
+// BatchGetDeviceStateInfo 批量查询某一类设备的状态信息，用于预警检测中
 func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option biz.QueryOption) ([]*v1.DeviceState, error) {
+	// 为了配合task的offset，这里查询需要延迟执行
+	if duration, err := time.ParseDuration(r.influxdbClient.offset); err == nil {
+		time.Sleep(duration)
+	}
+
 	if option.Filter == nil {
 		option.Filter = make(map[string]string)
 	}
