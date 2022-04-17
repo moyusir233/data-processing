@@ -182,7 +182,7 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 	m := make(map[string]string)
 	// 查询用的option
 	// 每次查询目前最新下采样状态数据之后的所有采样数据，以避免出现数据检测的遗漏
-	newestTime := time.Time{}
+	newestTime := time.Now().UTC()
 	option := QueryOption{
 		Bucket: taskConf.TargetBucket,
 		Filter: m,
@@ -207,7 +207,7 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 				record := tableResult.Record()
 				// 只对没有检测过的最新的记录进行检测
 				if t := record.Time(); t.After(newestTime) {
-					newestTime = t
+					newestTime = t.UTC()
 				} else {
 					continue
 				}
@@ -227,6 +227,9 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 					}
 				}
 			}
+			// 更新查询的最新时间
+			option.Start = &newestTime
+
 			err = tableResult.Close()
 			if err != nil {
 				u.logger.Error(errors.Newf(
