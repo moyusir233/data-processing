@@ -83,6 +83,6 @@ func NewInfluxdbData(data *conf.Data) (*InfluxdbData, func(), error) {
 		Client: client,
 		org:    data.Influxdb.Org,
 		orgId:  *org.Id,
-		offset: data.Influxdb.TaskOffset.String(),
+		offset: data.Influxdb.TaskOffset.AsDuration().String(),
 	}, func() { client.Close() }, nil
 }
