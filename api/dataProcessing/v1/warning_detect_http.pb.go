@@ -6,7 +6,6 @@ package v1
 
 import (
 	context "context"
-	v1 "gitee.com/moyusir/util/api/util/v1"
 	http "github.com/go-kratos/kratos/v2/transport/http"
 	binding "github.com/go-kratos/kratos/v2/transport/http/binding"
 )
@@ -21,14 +20,18 @@ const _ = http.SupportPackageIsVersion1
 type WarningDetectHTTPServer interface {
 	BatchGetDeviceStateInfo(context.Context, *BatchGetDeviceStateRequest) (*BatchGetDeviceStateReply, error)
 	BatchGetWarning(context.Context, *BatchGetWarningRequest) (*BatchGetWarningReply, error)
-	GetDeviceStateRegisterInfo(context.Context, *GetDeviceStateRegisterInfoRequest) (*v1.DeviceStateRegisterInfo, error)
+	DeleteDeviceStateInfo(context.Context, *DeleteDeviceStateRequest) (*DeleteDeviceStateReply, error)
+	DeleteWarning(context.Context, *DeleteWarningRequest) (*DeleteWarningReply, error)
+	UpdateWarning(context.Context, *UpdateWarningRequest) (*UpdateWarningReply, error)
 }
 
 func RegisterWarningDetectHTTPServer(s *http.Server, srv WarningDetectHTTPServer) {
 	r := s.Route("/")
 	r.GET("/states/{device_class_id}", _WarningDetect_BatchGetDeviceStateInfo0_HTTP_Handler(srv))
+	r.DELETE("/states/{device_class_id}", _WarningDetect_DeleteDeviceStateInfo0_HTTP_Handler(srv))
 	r.GET("/warnings", _WarningDetect_BatchGetWarning0_HTTP_Handler(srv))
-	r.GET("/register-info/states/{device_class_id}", _WarningDetect_GetDeviceStateRegisterInfo0_HTTP_Handler(srv))
+	r.DELETE("/warnings", _WarningDetect_DeleteWarning0_HTTP_Handler(srv))
+	r.PUT("/warnings", _WarningDetect_UpdateWarning0_HTTP_Handler(srv))
 }
 
 func _WarningDetect_BatchGetDeviceStateInfo0_HTTP_Handler(srv WarningDetectHTTPServer) func(ctx http.Context) error {
@@ -53,6 +56,28 @@ func _WarningDetect_BatchGetDeviceStateInfo0_HTTP_Handler(srv WarningDetectHTTPS
 	}
 }
 
+func _WarningDetect_DeleteDeviceStateInfo0_HTTP_Handler(srv WarningDetectHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in DeleteDeviceStateRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, "/api.dataProcessing.v1.WarningDetect/DeleteDeviceStateInfo")
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.DeleteDeviceStateInfo(ctx, req.(*DeleteDeviceStateRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*DeleteDeviceStateReply)
+		return ctx.Result(200, reply)
+	}
+}
+
 func _WarningDetect_BatchGetWarning0_HTTP_Handler(srv WarningDetectHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in BatchGetWarningRequest
@@ -72,24 +97,40 @@ func _WarningDetect_BatchGetWarning0_HTTP_Handler(srv WarningDetectHTTPServer) f
 	}
 }
 
-func _WarningDetect_GetDeviceStateRegisterInfo0_HTTP_Handler(srv WarningDetectHTTPServer) func(ctx http.Context) error {
+func _WarningDetect_DeleteWarning0_HTTP_Handler(srv WarningDetectHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in GetDeviceStateRegisterInfoRequest
+		var in DeleteWarningRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		if err := ctx.BindVars(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, "/api.dataProcessing.v1.WarningDetect/GetDeviceStateRegisterInfo")
+		http.SetOperation(ctx, "/api.dataProcessing.v1.WarningDetect/DeleteWarning")
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetDeviceStateRegisterInfo(ctx, req.(*GetDeviceStateRegisterInfoRequest))
+			return srv.DeleteWarning(ctx, req.(*DeleteWarningRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*v1.DeviceStateRegisterInfo)
+		reply := out.(*DeleteWarningReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _WarningDetect_UpdateWarning0_HTTP_Handler(srv WarningDetectHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in UpdateWarningRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, "/api.dataProcessing.v1.WarningDetect/UpdateWarning")
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.UpdateWarning(ctx, req.(*UpdateWarningRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*UpdateWarningReply)
 		return ctx.Result(200, reply)
 	}
 }
@@ -97,7 +138,9 @@ func _WarningDetect_GetDeviceStateRegisterInfo0_HTTP_Handler(srv WarningDetectHT
 type WarningDetectHTTPClient interface {
 	BatchGetDeviceStateInfo(ctx context.Context, req *BatchGetDeviceStateRequest, opts ...http.CallOption) (rsp *BatchGetDeviceStateReply, err error)
 	BatchGetWarning(ctx context.Context, req *BatchGetWarningRequest, opts ...http.CallOption) (rsp *BatchGetWarningReply, err error)
-	GetDeviceStateRegisterInfo(ctx context.Context, req *GetDeviceStateRegisterInfoRequest, opts ...http.CallOption) (rsp *v1.DeviceStateRegisterInfo, err error)
+	DeleteDeviceStateInfo(ctx context.Context, req *DeleteDeviceStateRequest, opts ...http.CallOption) (rsp *DeleteDeviceStateReply, err error)
+	DeleteWarning(ctx context.Context, req *DeleteWarningRequest, opts ...http.CallOption) (rsp *DeleteWarningReply, err error)
+	UpdateWarning(ctx context.Context, req *UpdateWarningRequest, opts ...http.CallOption) (rsp *UpdateWarningReply, err error)
 }
 
 type WarningDetectHTTPClientImpl struct {
@@ -134,13 +177,39 @@ func (c *WarningDetectHTTPClientImpl) BatchGetWarning(ctx context.Context, in *B
 	return &out, err
 }
 
-func (c *WarningDetectHTTPClientImpl) GetDeviceStateRegisterInfo(ctx context.Context, in *GetDeviceStateRegisterInfoRequest, opts ...http.CallOption) (*v1.DeviceStateRegisterInfo, error) {
-	var out v1.DeviceStateRegisterInfo
-	pattern := "/register-info/states/{device_class_id}"
+func (c *WarningDetectHTTPClientImpl) DeleteDeviceStateInfo(ctx context.Context, in *DeleteDeviceStateRequest, opts ...http.CallOption) (*DeleteDeviceStateReply, error) {
+	var out DeleteDeviceStateReply
+	pattern := "/states/{device_class_id}"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation("/api.dataProcessing.v1.WarningDetect/GetDeviceStateRegisterInfo"))
+	opts = append(opts, http.Operation("/api.dataProcessing.v1.WarningDetect/DeleteDeviceStateInfo"))
 	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	err := c.cc.Invoke(ctx, "DELETE", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, err
+}
+
+func (c *WarningDetectHTTPClientImpl) DeleteWarning(ctx context.Context, in *DeleteWarningRequest, opts ...http.CallOption) (*DeleteWarningReply, error) {
+	var out DeleteWarningReply
+	pattern := "/warnings"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation("/api.dataProcessing.v1.WarningDetect/DeleteWarning"))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "DELETE", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, err
+}
+
+func (c *WarningDetectHTTPClientImpl) UpdateWarning(ctx context.Context, in *UpdateWarningRequest, opts ...http.CallOption) (*UpdateWarningReply, error) {
+	var out UpdateWarningReply
+	pattern := "/warnings"
+	path := binding.EncodeURL(pattern, in, false)
+	opts = append(opts, http.Operation("/api.dataProcessing.v1.WarningDetect/UpdateWarning"))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "PUT", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

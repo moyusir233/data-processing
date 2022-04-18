@@ -41,25 +41,9 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/DeviceConfig1'
-    /register-info/states/{device_class_id}:
-        get:
-            summary: 查询指定设备注册的预警规则
-            operationId: WarningDetect_GetDeviceStateRegisterInfo
-            parameters:
-                - name: device_class_id
-                  in: query
-                  description: 设备类别号
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/DeviceStateRegisterInfo'
     /states/{device_class_id}:
         get:
+            summary: 分页查询设备信息
             operationId: WarningDetect_BatchGetDeviceStateInfo
             parameters:
                 - name: device_class_id
@@ -87,6 +71,15 @@ paths:
                   description: 查询过滤的条件，可以针对_measurement、_field或tag进行过滤
                   schema:
                     type: string
+                - name: limit
+                  in: query
+                  description: 分页查询参数
+                  schema:
+                    type: string
+                - name: offset
+                  in: query
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -94,6 +87,32 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/BatchGetDeviceStateReply'
+        delete:
+            summary: 删除设备状态信息
+            operationId: WarningDetect_DeleteDeviceStateInfo
+            parameters:
+                - name: device_class_id
+                  in: query
+                  description: 设备类别号
+                  schema:
+                    type: string
+                - name: device_id
+                  in: query
+                  description: 设备id
+                  schema:
+                    type: string
+                - name: time
+                  in: query
+                  description: 时间
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteDeviceStateReply'
     /warnings:
         get:
             summary: 分页查询用户的警告消息
@@ -119,6 +138,15 @@ paths:
                   description: 查询过滤的条件，可以针对_measurement、_field或tag进行过滤
                   schema:
                     type: string
+                - name: limit
+                  in: query
+                  description: 分页查询参数
+                  schema:
+                    type: string
+                - name: offset
+                  in: query
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -126,6 +154,53 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/BatchGetWarningReply'
+        put:
+            summary: 更新用户的警告消息的处理状态
+            operationId: WarningDetect_UpdateWarning
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateWarningRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdateWarningReply'
+        delete:
+            summary: 删除用户的警告消息
+            operationId: WarningDetect_DeleteWarning
+            parameters:
+                - name: device_class_id
+                  in: query
+                  description: 设备类别号
+                  schema:
+                    type: string
+                - name: device_id
+                  in: query
+                  description: 设备id
+                  schema:
+                    type: string
+                - name: device_field_name
+                  in: query
+                  description: 设备字段名称
+                  schema:
+                    type: string
+                - name: time
+                  in: query
+                  description: 时间
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteWarningReply'
 components:
     schemas:
         BatchGetDeviceStateReply:
@@ -134,6 +209,9 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/DeviceState'
+                total:
+                    type: integer
+                    format: int32
             description: 设备状态信息批量查询响应
         BatchGetWarningReply:
             properties:
@@ -141,7 +219,20 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/Warning'
+                total:
+                    type: integer
+                    format: int32
             description: 警告消息批量查询响应
+        DeleteDeviceStateReply:
+            properties:
+                success:
+                    type: boolean
+            description: 删除设备状态信息响应
+        DeleteWarningReply:
+            properties:
+                success:
+                    type: boolean
+            description: 警告信息删除响应
         DeviceConfig0:
             properties:
                 id:
@@ -168,28 +259,28 @@ components:
                     $ref: '#/components/schemas/FieldsEntry'
                 tags:
                     type: object
-        DeviceStateRegisterInfo:
+        UpdateWarningReply:
             properties:
-                fields:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/Field'
-            description: 设备状态注册信息
-        Warning:
+                success:
+                    type: boolean
+            description: 更新警告信息处理状态响应
+        UpdateWarningRequest:
             properties:
+                device_class_id:
+                    type: integer
+                    description: 设备类别号
+                    format: int32
                 device_id:
                     type: string
-                    description: 引发告警的设备的id
+                    description: 设备id
                 device_field_name:
                     type: string
-                    description: 设备字段
-                warning_rule:
-                    $ref: '#/components/schemas/WarningRule'
-                start:
+                    description: 设备字段名称
+                time:
                     type: string
-                    description: 告警出现的时间范围
+                    description: 时间
                     format: RFC3339
-                end:
-                    type: string
-                    format: RFC3339
-            description: 警告信息
+                processed:
+                    type: boolean
+                    description: 处理状态
+            description: 更新警告信息处理状态请求

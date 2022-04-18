@@ -26,6 +26,8 @@ type InfluxdbData struct {
 	// 用户的组织信息
 	org   string
 	orgId string
+	// 任务启动的offset
+	offset string
 }
 
 // NewRedisData 实例化redis数据库连接对象
@@ -81,5 +83,6 @@ func NewInfluxdbData(data *conf.Data) (*InfluxdbData, func(), error) {
 		Client: client,
 		org:    data.Influxdb.Org,
 		orgId:  *org.Id,
+		offset: data.Influxdb.TaskOffset.AsDuration().String(),
 	}, func() { client.Close() }, nil
 }

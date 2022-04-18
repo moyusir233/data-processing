@@ -8,7 +8,6 @@ package v1
 
 import (
 	context "context"
-	v1 "gitee.com/moyusir/util/api/util/v1"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -23,11 +22,16 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type WarningDetectClient interface {
+	// 分页查询设备信息
 	BatchGetDeviceStateInfo(ctx context.Context, in *BatchGetDeviceStateRequest, opts ...grpc.CallOption) (*BatchGetDeviceStateReply, error)
+	// 删除设备状态信息
+	DeleteDeviceStateInfo(ctx context.Context, in *DeleteDeviceStateRequest, opts ...grpc.CallOption) (*DeleteDeviceStateReply, error)
 	// 分页查询用户的警告消息
 	BatchGetWarning(ctx context.Context, in *BatchGetWarningRequest, opts ...grpc.CallOption) (*BatchGetWarningReply, error)
-	// 查询指定设备注册的预警规则
-	GetDeviceStateRegisterInfo(ctx context.Context, in *GetDeviceStateRegisterInfoRequest, opts ...grpc.CallOption) (*v1.DeviceStateRegisterInfo, error)
+	// 删除用户的警告消息
+	DeleteWarning(ctx context.Context, in *DeleteWarningRequest, opts ...grpc.CallOption) (*DeleteWarningReply, error)
+	// 更新用户的警告消息的处理状态
+	UpdateWarning(ctx context.Context, in *UpdateWarningRequest, opts ...grpc.CallOption) (*UpdateWarningReply, error)
 }
 
 type warningDetectClient struct {
@@ -47,6 +51,15 @@ func (c *warningDetectClient) BatchGetDeviceStateInfo(ctx context.Context, in *B
 	return out, nil
 }
 
+func (c *warningDetectClient) DeleteDeviceStateInfo(ctx context.Context, in *DeleteDeviceStateRequest, opts ...grpc.CallOption) (*DeleteDeviceStateReply, error) {
+	out := new(DeleteDeviceStateReply)
+	err := c.cc.Invoke(ctx, "/api.dataProcessing.v1.WarningDetect/DeleteDeviceStateInfo", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *warningDetectClient) BatchGetWarning(ctx context.Context, in *BatchGetWarningRequest, opts ...grpc.CallOption) (*BatchGetWarningReply, error) {
 	out := new(BatchGetWarningReply)
 	err := c.cc.Invoke(ctx, "/api.dataProcessing.v1.WarningDetect/BatchGetWarning", in, out, opts...)
@@ -56,9 +69,18 @@ func (c *warningDetectClient) BatchGetWarning(ctx context.Context, in *BatchGetW
 	return out, nil
 }
 
-func (c *warningDetectClient) GetDeviceStateRegisterInfo(ctx context.Context, in *GetDeviceStateRegisterInfoRequest, opts ...grpc.CallOption) (*v1.DeviceStateRegisterInfo, error) {
-	out := new(v1.DeviceStateRegisterInfo)
-	err := c.cc.Invoke(ctx, "/api.dataProcessing.v1.WarningDetect/GetDeviceStateRegisterInfo", in, out, opts...)
+func (c *warningDetectClient) DeleteWarning(ctx context.Context, in *DeleteWarningRequest, opts ...grpc.CallOption) (*DeleteWarningReply, error) {
+	out := new(DeleteWarningReply)
+	err := c.cc.Invoke(ctx, "/api.dataProcessing.v1.WarningDetect/DeleteWarning", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *warningDetectClient) UpdateWarning(ctx context.Context, in *UpdateWarningRequest, opts ...grpc.CallOption) (*UpdateWarningReply, error) {
+	out := new(UpdateWarningReply)
+	err := c.cc.Invoke(ctx, "/api.dataProcessing.v1.WarningDetect/UpdateWarning", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -69,11 +91,16 @@ func (c *warningDetectClient) GetDeviceStateRegisterInfo(ctx context.Context, in
 // All implementations must embed UnimplementedWarningDetectServer
 // for forward compatibility
 type WarningDetectServer interface {
+	// 分页查询设备信息
 	BatchGetDeviceStateInfo(context.Context, *BatchGetDeviceStateRequest) (*BatchGetDeviceStateReply, error)
+	// 删除设备状态信息
+	DeleteDeviceStateInfo(context.Context, *DeleteDeviceStateRequest) (*DeleteDeviceStateReply, error)
 	// 分页查询用户的警告消息
 	BatchGetWarning(context.Context, *BatchGetWarningRequest) (*BatchGetWarningReply, error)
-	// 查询指定设备注册的预警规则
-	GetDeviceStateRegisterInfo(context.Context, *GetDeviceStateRegisterInfoRequest) (*v1.DeviceStateRegisterInfo, error)
+	// 删除用户的警告消息
+	DeleteWarning(context.Context, *DeleteWarningRequest) (*DeleteWarningReply, error)
+	// 更新用户的警告消息的处理状态
+	UpdateWarning(context.Context, *UpdateWarningRequest) (*UpdateWarningReply, error)
 	mustEmbedUnimplementedWarningDetectServer()
 }
 
@@ -84,11 +111,17 @@ type UnimplementedWarningDetectServer struct {
 func (UnimplementedWarningDetectServer) BatchGetDeviceStateInfo(context.Context, *BatchGetDeviceStateRequest) (*BatchGetDeviceStateReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchGetDeviceStateInfo not implemented")
 }
+func (UnimplementedWarningDetectServer) DeleteDeviceStateInfo(context.Context, *DeleteDeviceStateRequest) (*DeleteDeviceStateReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteDeviceStateInfo not implemented")
+}
 func (UnimplementedWarningDetectServer) BatchGetWarning(context.Context, *BatchGetWarningRequest) (*BatchGetWarningReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchGetWarning not implemented")
 }
-func (UnimplementedWarningDetectServer) GetDeviceStateRegisterInfo(context.Context, *GetDeviceStateRegisterInfoRequest) (*v1.DeviceStateRegisterInfo, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetDeviceStateRegisterInfo not implemented")
+func (UnimplementedWarningDetectServer) DeleteWarning(context.Context, *DeleteWarningRequest) (*DeleteWarningReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteWarning not implemented")
+}
+func (UnimplementedWarningDetectServer) UpdateWarning(context.Context, *UpdateWarningRequest) (*UpdateWarningReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateWarning not implemented")
 }
 func (UnimplementedWarningDetectServer) mustEmbedUnimplementedWarningDetectServer() {}
 
@@ -121,6 +154,24 @@ func _WarningDetect_BatchGetDeviceStateInfo_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WarningDetect_DeleteDeviceStateInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteDeviceStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WarningDetectServer).DeleteDeviceStateInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.dataProcessing.v1.WarningDetect/DeleteDeviceStateInfo",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WarningDetectServer).DeleteDeviceStateInfo(ctx, req.(*DeleteDeviceStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _WarningDetect_BatchGetWarning_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(BatchGetWarningRequest)
 	if err := dec(in); err != nil {
@@ -139,20 +190,38 @@ func _WarningDetect_BatchGetWarning_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
-func _WarningDetect_GetDeviceStateRegisterInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetDeviceStateRegisterInfoRequest)
+func _WarningDetect_DeleteWarning_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteWarningRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(WarningDetectServer).GetDeviceStateRegisterInfo(ctx, in)
+		return srv.(WarningDetectServer).DeleteWarning(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.dataProcessing.v1.WarningDetect/GetDeviceStateRegisterInfo",
+		FullMethod: "/api.dataProcessing.v1.WarningDetect/DeleteWarning",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WarningDetectServer).GetDeviceStateRegisterInfo(ctx, req.(*GetDeviceStateRegisterInfoRequest))
+		return srv.(WarningDetectServer).DeleteWarning(ctx, req.(*DeleteWarningRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WarningDetect_UpdateWarning_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateWarningRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WarningDetectServer).UpdateWarning(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.dataProcessing.v1.WarningDetect/UpdateWarning",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WarningDetectServer).UpdateWarning(ctx, req.(*UpdateWarningRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -169,12 +238,20 @@ var WarningDetect_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _WarningDetect_BatchGetDeviceStateInfo_Handler,
 		},
 		{
+			MethodName: "DeleteDeviceStateInfo",
+			Handler:    _WarningDetect_DeleteDeviceStateInfo_Handler,
+		},
+		{
 			MethodName: "BatchGetWarning",
 			Handler:    _WarningDetect_BatchGetWarning_Handler,
 		},
 		{
-			MethodName: "GetDeviceStateRegisterInfo",
-			Handler:    _WarningDetect_GetDeviceStateRegisterInfo_Handler,
+			MethodName: "DeleteWarning",
+			Handler:    _WarningDetect_DeleteWarning_Handler,
+		},
+		{
+			MethodName: "UpdateWarning",
+			Handler:    _WarningDetect_UpdateWarning_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

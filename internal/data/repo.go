@@ -110,16 +110,46 @@ func (r *Repo) RunWarningDetectTask(config *biz.WarningDetectTaskConfig) (*domai
 		r.influxdbClient.orgId,
 	)
 	if err != nil {
+		if task != nil {
+			tasksAPI.DeleteTask(context.Background(), task)
+		}
 		return nil, errors.Newf(
 			500, "Repo_State_Error",
 			"启动influx task时发生了错误:%v", err)
 	}
 
-	return tasksAPI.RunManually(context.Background(), task)
+	if r.influxdbClient.offset != "0s" {
+		// 为task添加offset
+		task.Offset = &r.influxdbClient.offset
+		task, err = tasksAPI.UpdateTask(context.Background(), task)
+		if err != nil {
+			if task != nil {
+				tasksAPI.DeleteTask(context.Background(), task)
+			}
+			return nil, errors.Newf(
+				500, "Repo_State_Error",
+				"更新influx task时发生了错误:%v", err)
+		}
+	}
+
+	run, err := tasksAPI.RunManually(context.Background(), task)
+	if err != nil {
+		if task != nil {
+			tasksAPI.DeleteTask(context.Background(), task)
+		}
+		return nil, errors.Newf(
+			500, "Repo_State_Error",
+			"启动influx task时发生了错误:%v", err)
+	}
+
+	return run, nil
 }
 
 // StopWarningDetectTask 停止运行指定的task
 func (r *Repo) StopWarningDetectTask(run *domain.Run) error {
+	if run == nil {
+		return nil
+	}
 	tasksAPI := r.influxdbClient.TasksAPI()
 	tasksAPI.CancelRun(context.Background(), run)
 	err := tasksAPI.DeleteTaskWithID(context.Background(), *run.TaskID)
@@ -131,8 +161,33 @@ func (r *Repo) StopWarningDetectTask(run *domain.Run) error {
 	return nil
 }
 
-// BatchGetDeviceStateInfo 批量查询某一类设备的状态信息
-func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOption) ([]*v1.DeviceState, error) {
+// GetRecordCount 依据查询条件获取记录数
+func (r *Repo) GetRecordCount(option biz.QueryOption) (int64, error) {
+	option.Limit = 0
+	option.CountQuery = true
+	if option.GroupCount == 0 {
+		option.GroupCount = 1
+	}
+	flux := buildFluxQuery(&option)
+
+	queryAPI := r.influxdbClient.QueryAPI(r.influxdbClient.org)
+	tableResult, err := queryAPI.Query(context.Background(), flux)
+	if err != nil {
+		return 0, errors.Newf(
+			500, "Repo_State_Error",
+			"查询记录数量时发生了错误:%v", err)
+	}
+	defer tableResult.Close()
+
+	if !tableResult.Next() {
+		return 0, nil
+	}
+	// 依据GroupCount,将查询得到的记录数量分组
+	return tableResult.Record().Value().(int64) / int64(option.GroupCount), nil
+}
+
+// BatchGetDeviceStateInfo 批量查询某一类设备的状态信息，用于预警检测中
+func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option biz.QueryOption) ([]*v1.DeviceState, error) {
 	if option.Filter == nil {
 		option.Filter = make(map[string]string)
 	}
@@ -150,7 +205,7 @@ func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOptio
 	option.Filter["deviceClassID"] = strconv.Itoa(deviceClassID)
 
 	queryApi := r.influxdbClient.QueryAPI(r.influxdbClient.org)
-	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(option))
+	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(&option))
 	if err != nil {
 		return nil, errors.Newf(
 			500, "Repo_State_Error",
@@ -160,13 +215,13 @@ func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOptio
 
 	var result []*v1.DeviceState
 
-	for tableResult.Next() {
-		pos := tableResult.Record().ValueByKey("table").(int64)
+	for i := 0; tableResult.Next(); i++ {
+		pos := i / option.GroupCount
 		if pos == -1 {
 			break
 		}
 		// result达到容量上限，则需要扩容
-		if int(pos) == len(result) {
+		if pos == len(result) {
 			result = append(result, &v1.DeviceState{
 				Fields: make(map[string]float64),
 				Tags:   make(map[string]string),
@@ -177,12 +232,11 @@ func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOptio
 		if result[pos].DeviceId == "" {
 			result[pos].DeviceId = record.Measurement()
 			result[pos].DeviceClassId = int32(deviceClassID)
-			// 数据库中的时间为utc时间，需要转换
-			result[pos].Time = timestamppb.New(record.Time().Add(8 * time.Hour))
+			result[pos].Time = timestamppb.New(record.Time())
 			// 解析tag
 			for k, v := range record.Values() {
-				// 除了系统字段、table字段以及deviceClassID字段，其余都视作tag
-				if !strings.HasPrefix(k, "_") && k != "deviceClassID" && k != "table" {
+				// 除了系统字段、table字段、result字段以及deviceClassID字段，其余都视作tag
+				if !strings.HasPrefix(k, "_") && k != "deviceClassID" && k != "table" && k != "result" {
 					result[pos].Tags[k] = fmt.Sprintf("%v", v)
 				}
 			}
@@ -198,7 +252,7 @@ func (r *Repo) BatchGetDeviceStateInfo(deviceClassID int, option *biz.QueryOptio
 }
 
 // BatchGetDeviceWarningDetectField 批量查询某一类设备某个字段的信息
-func (r *Repo) BatchGetDeviceWarningDetectField(deviceClassID int, fieldName string, option *biz.QueryOption) (*api.QueryTableResult, error) {
+func (r *Repo) BatchGetDeviceWarningDetectField(deviceClassID int, fieldName string, option biz.QueryOption) (*api.QueryTableResult, error) {
 	if option.Filter == nil {
 		option.Filter = make(map[string]string)
 	}
@@ -208,7 +262,7 @@ func (r *Repo) BatchGetDeviceWarningDetectField(deviceClassID int, fieldName str
 	option.Filter["_field"] = fieldName
 
 	queryApi := r.influxdbClient.QueryAPI(r.influxdbClient.org)
-	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(option))
+	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(&option))
 	if err != nil {
 		return nil, errors.Newf(
 			500, "Repo_State_Error",
@@ -217,35 +271,60 @@ func (r *Repo) BatchGetDeviceWarningDetectField(deviceClassID int, fieldName str
 
 	return tableResult, nil
 }
+func (r *Repo) DeleteDeviceStateInfo(bucket string, request *v1.DeleteDeviceStateRequest) error {
+	deleteAPI := r.influxdbClient.DeleteAPI()
+	err := deleteAPI.DeleteWithName(
+		context.Background(), r.influxdbClient.org, bucket,
+		request.Time.AsTime(),
+		request.Time.AsTime().Add(time.Second),
+		fmt.Sprintf(
+			`deviceClassID="%d" AND _measurement="%s"`,
+			request.DeviceClassId, request.DeviceId,
+		),
+	)
+	if err != nil {
+		return errors.Newf(
+			500, "Repo_State_Error",
+			"删除设备状态信息时发生了错误:%v", err)
+	}
 
-func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, error) {
+	return nil
+}
+
+func (r *Repo) GetWarningMessage(option biz.QueryOption) ([]*v1.BatchGetWarningReply_Warning, error) {
 	// 以设备id和设备字段名和设备类别号以及_time作为group key
 	option.GroupBy = append(
-		option.GroupBy, "_measurement", "deviceFieldName", "deviceClassID", "_time")
+		option.GroupBy, "deviceClassID", "_measurement", "deviceFieldName", "_time")
+
+	// 填充查询的参数，并将关于deviceID的filter转换为对_measurement的filter
+	if deviceID, ok := option.Filter["deviceID"]; ok {
+		delete(option.Filter, "deviceID")
+		option.Filter["_measurement"] = deviceID
+	}
 
 	queryApi := r.influxdbClient.QueryAPI(r.influxdbClient.org)
-	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(option))
+	tableResult, err := queryApi.Query(context.Background(), buildFluxQuery(&option))
 	if err != nil {
 		return nil, errors.Newf(
 			500, "Repo_State_Error",
 			"批量查询警告信息时发生了错误:%v", err)
 	}
 
-	var warnings []*utilApi.Warning
-	for tableResult.Next() {
-		pos := tableResult.Record().ValueByKey("table").(int64)
-		if pos == -1 {
-			break
-		}
+	var warnings []*v1.BatchGetWarningReply_Warning
+	for i := 0; tableResult.Next(); i++ {
+		pos := i / option.GroupCount
 		// 达到容量上限，则需要扩容
-		if int(pos) == len(warnings) {
-			warnings = append(warnings, &utilApi.Warning{})
+		if pos == len(warnings) {
+			warnings = append(
+				warnings, &v1.BatchGetWarningReply_Warning{
+					Tags:   make(map[string]string),
+					Fields: make(map[string]string),
+				})
 		}
 
 		record := tableResult.Record()
 		if warnings[pos].DeviceId == "" {
-			warnings[pos].DeviceId = record.Measurement()
-			warnings[pos].DeviceFieldName = record.ValueByKey("deviceFieldName").(string)
+			// 解析tag字段，包括deviceId、deviceClassId、deviceFieldName
 			deviceClassID, err := strconv.Atoi(record.ValueByKey("deviceClassID").(string))
 			if err != nil {
 				return nil, errors.Newf(
@@ -253,6 +332,9 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, e
 					"批量查询警告信息时发生了错误:%v", err)
 			}
 			warnings[pos].DeviceClassId = int32(deviceClassID)
+			warnings[pos].DeviceId = record.Measurement()
+			warnings[pos].Tags["deviceFieldName"] = record.ValueByKey("deviceFieldName").(string)
+			warnings[pos].Tags["processed"] = record.ValueByKey("processed").(string)
 		}
 
 		// 解析field，field包括start、end以及警告信息message
@@ -261,23 +343,23 @@ func (r *Repo) GetWarningMessage(option *biz.QueryOption) ([]*utilApi.Warning, e
 		if field != nil {
 			switch field.(string) {
 			case "start":
-				parse, err := time.Parse(time.RFC3339, value.(string))
+				parse, err := time.Parse(time.RFC3339Nano, value.(string))
 				if err != nil {
 					return nil, errors.Newf(
 						500, "Repo_State_Error",
 						"解析警告信息的start字段时发生了错误:%v", err)
 				}
-				warnings[pos].Start = timestamppb.New(parse.Add(8 * time.Hour))
+				warnings[pos].Start = timestamppb.New(parse)
 			case "end":
-				parse, err := time.Parse(time.RFC3339, value.(string))
+				parse, err := time.Parse(time.RFC3339Nano, value.(string))
 				if err != nil {
 					return nil, errors.Newf(
 						500, "Repo_State_Error",
 						"解析警告信息的end字段时发生了错误:%v", err)
 				}
-				warnings[pos].End = timestamppb.New(parse.Add(8 * time.Hour))
+				warnings[pos].End = timestamppb.New(parse)
 			case "message":
-				warnings[pos].WarningMessage = value.(string)
+				warnings[pos].Fields["warningMessage"] = value.(string)
 			}
 		}
 	}
@@ -299,8 +381,9 @@ func (r *Repo) SaveWarningMessage(bucket string, warnings ...*utilApi.Warning) e
 		point.SetTime(w.Start.AsTime().UTC()).
 			AddTag("deviceClassID", strconv.FormatInt(int64(w.DeviceClassId), 10)).
 			AddTag("deviceFieldName", w.DeviceFieldName).
-			AddField("start", start.Format(time.RFC3339)).
-			AddField("end", end.Format(time.RFC3339)).
+			AddTag("processed", strconv.FormatBool(w.Processed)).
+			AddField("start", start).
+			AddField("end", end).
 			AddField("message", w.WarningMessage).
 			SortFields().
 			SortTags()
@@ -310,9 +393,77 @@ func (r *Repo) SaveWarningMessage(bucket string, warnings ...*utilApi.Warning) e
 	return nil
 }
 
+func (r *Repo) DeleteWarningMessage(bucket string, request *v1.DeleteWarningRequest) error {
+	deleteAPI := r.influxdbClient.DeleteAPI()
+	err := deleteAPI.DeleteWithName(
+		context.Background(), r.influxdbClient.org, bucket,
+		request.Time.AsTime(),
+		request.Time.AsTime().Add(time.Second),
+		fmt.Sprintf(
+			`deviceClassID="%d" AND _measurement="%s" AND deviceFieldName="%s"`,
+			request.DeviceClassId, request.DeviceId, request.DeviceFieldName,
+		),
+	)
+	if err != nil {
+		return errors.Newf(
+			500, "Repo_State_Error",
+			"删除警告信息时发生了错误:%v", err)
+	}
+
+	return nil
+}
+
+func (r *Repo) UpdateWarningProcessedState(bucket string, request *v1.UpdateWarningRequest) error {
+	start := request.Time.AsTime()
+	stop := request.Time.AsTime().Add(time.Second)
+	warning, err := r.GetWarningMessage(biz.QueryOption{
+		Bucket: bucket,
+		Start:  &start,
+		Stop:   &stop,
+		Filter: map[string]string{
+			"deviceClassID":   strconv.Itoa(int(request.DeviceClassId)),
+			"deviceID":        request.DeviceId,
+			"deviceFieldName": request.DeviceFieldName,
+		},
+		GroupCount: 3,
+	})
+	if err != nil {
+		return err
+	}
+	if len(warning) == 0 {
+		return nil
+	}
+
+	err = r.DeleteWarningMessage(bucket, &v1.DeleteWarningRequest{
+		DeviceClassId:   request.DeviceClassId,
+		DeviceId:        request.DeviceId,
+		DeviceFieldName: request.DeviceFieldName,
+		Time:            request.Time,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = r.SaveWarningMessage(bucket, &utilApi.Warning{
+		DeviceClassId:   request.DeviceClassId,
+		DeviceId:        request.DeviceId,
+		DeviceFieldName: request.DeviceFieldName,
+		WarningMessage:  warning[0].Fields["warningMessage"],
+		Start:           warning[0].Start,
+		End:             warning[0].End,
+		Processed:       request.Processed,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func buildFluxQuery(option *biz.QueryOption) string {
 	flux := fmt.Sprintf(`from(bucket: "%s")`, option.Bucket)
 
+	// 选取一定时间范围内的数据
 	if option.Past != 0 {
 		rangeFilter := `|> range(start: -%s)`
 		flux += fmt.Sprintf(rangeFilter, option.Past.String())
@@ -331,6 +482,7 @@ func buildFluxQuery(option *biz.QueryOption) string {
 		flux += `|> range(start: -30m)`
 	}
 
+	// 添加过滤条件
 	if len(option.Filter) != 0 {
 		filterFormat := `|> filter(fn: (r) => %s)`
 		filters := make([]string, 0, len(option.Filter))
@@ -343,14 +495,28 @@ func buildFluxQuery(option *biz.QueryOption) string {
 		flux += fmt.Sprintf(filterFormat, strings.Join(filters, " and "))
 	}
 
-	if len(option.GroupBy) != 0 {
-		format := `|> group(columns: [%s])`
-		group := make([]string, len(option.GroupBy))
-		for i, g := range option.GroupBy {
-			group[i] = fmt.Sprintf(`"%s"`, g)
-		}
+	// 将分组条件进行格式转换
+	group := make([]string, len(option.GroupBy))
+	for i, g := range option.GroupBy {
+		group[i] = fmt.Sprintf(`"%s"`, g)
+	}
 
-		flux += fmt.Sprintf(format, strings.Join(group, ", "))
+	// 以分组条件group进行排序，让逻辑上视为一条记录排列在一起
+	flux += fmt.Sprintf(
+		`|> group()|> sort(columns: [%s])`, strings.Join(group, ","))
+
+	// 分页查询
+	if option.Limit != 0 {
+		// 利用group聚合，然后利用sort将逻辑上视为同一记录的信息排列在一起，
+		// 从而可以利用limit函数进行分页，但是要注意，limit和offset要进行放缩
+		// 分页
+		flux += fmt.Sprintf(`|> limit(n: %d,offset: %d)`, option.Limit, option.Offset)
+	}
+
+	// 计数查询，直接利用group聚合后再利用count计数
+	// 注意此时得到的记录数量是measurement的field的数量乘以实际的记录数，因此还要除以field的数量
+	if option.CountQuery {
+		flux += "|> group()|> count()"
 	}
 
 	return flux

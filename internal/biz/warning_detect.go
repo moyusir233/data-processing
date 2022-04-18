@@ -14,7 +14,9 @@ import (
 	"github.com/influxdata/influxdb-client-go/v2/api"
 	"github.com/influxdata/influxdb-client-go/v2/domain"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -43,13 +45,21 @@ type WarningDetectUsecase struct {
 
 type WarningDetectRepo interface {
 	// BatchGetDeviceStateInfo 批量查询某一类设备的状态信息
-	BatchGetDeviceStateInfo(deviceClassID int, option *QueryOption) ([]*v1.DeviceState, error)
+	BatchGetDeviceStateInfo(deviceClassID int, option QueryOption) ([]*v1.DeviceState, error)
 	// BatchGetDeviceWarningDetectField 批量查询某一类设备某个字段的信息，用于预警检测
-	BatchGetDeviceWarningDetectField(deviceClassID int, fieldName string, option *QueryOption) (*api.QueryTableResult, error)
+	BatchGetDeviceWarningDetectField(deviceClassID int, fieldName string, option QueryOption) (*api.QueryTableResult, error)
+	// DeleteDeviceStateInfo 删除设备状态信息
+	DeleteDeviceStateInfo(bucket string, request *v1.DeleteDeviceStateRequest) error
 	// GetWarningMessage 查询当前存储在数据库中的警告信息
-	GetWarningMessage(option *QueryOption) ([]*utilApi.Warning, error)
+	GetWarningMessage(option QueryOption) ([]*v1.BatchGetWarningReply_Warning, error)
 	// SaveWarningMessage 保存警告信息
 	SaveWarningMessage(bucket string, warnings ...*utilApi.Warning) error
+	// DeleteWarningMessage 删除警告信息
+	DeleteWarningMessage(bucket string, request *v1.DeleteWarningRequest) error
+	// UpdateWarningProcessedState 更新警告信息处理状态
+	UpdateWarningProcessedState(bucket string, request *v1.UpdateWarningRequest) error
+	// GetRecordCount 依据查询条件获取记录数
+	GetRecordCount(option QueryOption) (int64, error)
 	// RunWarningDetectTask 依据预警字段注册的预警规则，创建并运行下采样设备状态信息数据的task
 	RunWarningDetectTask(config *WarningDetectTaskConfig) (*domain.Run, error)
 	// StopWarningDetectTask 关闭指定task的运行
@@ -83,8 +93,15 @@ type QueryOption struct {
 	Past time.Duration
 	// 查询时的过滤条件，可以指定tag、_measurement、_field
 	Filter map[string]string
-	// 依据指定的列名进行groupBy操作，用于reshape查询结果
+	// 依据指定的列名进行分组操作，通过sort实现，主要是将一个table中逻辑上视为一条记录的信息排列在一起
 	GroupBy []string
+	// 每个由逻辑上可以视作一条记录的信息组成的组的大小，在将信息组合成记录时使用
+	GroupCount int
+	// 是否进行计数查询
+	CountQuery bool
+	// 分页查询相关参数
+	Limit  int
+	Offset int
 }
 
 // 链表节点，保存mutex、channel以及状态标志
@@ -165,11 +182,14 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 	// 避免访问nil map而实例化的空map
 	m := make(map[string]string)
 	// 查询用的option
-	option := &QueryOption{
+	// 每次查询目前最新下采样状态数据之后的所有采样数据，以避免出现数据检测的遗漏
+	newestTime := time.Now().Add(-1 * time.Hour).UTC()
+	option := QueryOption{
 		Bucket: taskConf.TargetBucket,
-		Past:   every,
 		Filter: m,
+		Start:  &newestTime,
 	}
+
 	for {
 		select {
 		case <-u.ctx.Done():
@@ -186,7 +206,20 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 			// 依据解析注册信息得到的预警规则进行预警检测
 			for tableResult.Next() {
 				record := tableResult.Record()
-				value := record.Value().(float64)
+
+				// 只对没有检测过的最新的记录进行检测
+				if t := record.Time(); t.After(newestTime) {
+					newestTime = t.UTC()
+				} else {
+					continue
+				}
+
+				value, err := strconv.ParseFloat(fmt.Sprintf("%v", record.Value()), 64)
+				if err != nil {
+					u.logger.Error(err)
+					continue
+				}
+
 				if field.Func(value) {
 					u.logger.Infof("检测到了违反预警规则的设备状态信息:%v", record.String())
 
@@ -201,6 +234,9 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 					}
 				}
 			}
+			// 更新查询的最新时间
+			option.Start = &newestTime
+
 			err = tableResult.Close()
 			if err != nil {
 				u.logger.Error(errors.Newf(
@@ -297,7 +333,15 @@ func (u *WarningDetectUsecase) warningPush(conn *websocket.Conn, node *warningPu
 		case <-u.ctx.Done():
 			return
 		case warning = <-node.warningChannel:
-			err := conn.WriteJSON(warning)
+			marshal, err := protojson.Marshal(warning)
+			if err != nil {
+				u.logger.Error(errors.Newf(500, "Biz_State_Error",
+					"将警告信息序列化为json时发生了错误:%v", err,
+				))
+				return
+			}
+
+			err = conn.WriteMessage(websocket.TextMessage, marshal)
 			// TODO 考虑错误处理
 			if err != nil {
 				u.logger.Error(errors.Newf(500, "Biz_State_Error",
@@ -389,22 +433,79 @@ func (u *WarningDetectUsecase) AddWarningPushConnection(conn *websocket.Conn) {
 // BatchGetDeviceStateInfo 批量查询设备状态信息
 func (u *WarningDetectUsecase) BatchGetDeviceStateInfo(
 	deviceClassID int,
-	option *QueryOption) ([]*v1.DeviceState, error) {
+	option *QueryOption) (states []*v1.DeviceState, count int64, err error) {
 	option.Bucket = conf.Username
-	return u.repo.BatchGetDeviceStateInfo(deviceClassID, option)
+
+	// 一条状态记录产生其预警字段数量的信息，因此GroupCount即等于设备预警字段信息
+	fieldCount := len(u.parser.GetWarningDetectFields(deviceClassID))
+	option.GroupCount = fieldCount
+
+	// 依据measurement field的数量对limit和offset进行放缩
+	if option.Limit != 0 {
+		option.Limit *= fieldCount
+		option.Offset *= fieldCount
+	}
+
+	states, err = u.repo.BatchGetDeviceStateInfo(deviceClassID, *option)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// 查询分页时需要的记录总数total
+	if option.Limit != 0 {
+		count, err = u.repo.GetRecordCount(*option)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+
+	return states, count, nil
+}
+
+// DeleteDeviceState 删除设备状态信息
+func (u *WarningDetectUsecase) DeleteDeviceState(request *v1.DeleteDeviceStateRequest) error {
+	return u.repo.DeleteDeviceStateInfo(conf.Username, request)
 }
 
 // BatchGetWarning 批量查询警告信息
-func (u *WarningDetectUsecase) BatchGetWarning(option *QueryOption) ([]*utilApi.Warning, error) {
+func (u *WarningDetectUsecase) BatchGetWarning(option *QueryOption) (
+	warnings []*v1.BatchGetWarningReply_Warning, count int64, err error) {
 	// 以<用户名-warning>为名的bucket中保存着警告信息
 	option.Bucket = fmt.Sprintf("%s-warnings", conf.Username)
-	return u.repo.GetWarningMessage(option)
+
+	// 但警告信息固定三条field:start end message
+	fieldCount := 3
+	option.GroupCount = fieldCount
+
+	// 依据measurement field的数量对limit和offset进行放缩
+	if option.Limit != 0 {
+		option.Limit *= fieldCount
+		option.Offset *= fieldCount
+	}
+
+	warnings, err = u.repo.GetWarningMessage(*option)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if option.Limit != 0 {
+		count, err = u.repo.GetRecordCount(*option)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+
+	return warnings, count, nil
 }
 
-// GetDeviceStateRegisterInfo 查询关于设备状态，包括预警规则在内的注册信息
-func (u *WarningDetectUsecase) GetDeviceStateRegisterInfo(deviceClassID int) *utilApi.DeviceStateRegisterInfo {
-	if deviceClassID >= len(u.parser.Info) {
-		return nil
-	}
-	return &u.parser.Info[deviceClassID]
+// DeleteWarningMessage 删除警告
+func (u *WarningDetectUsecase) DeleteWarningMessage(request *v1.DeleteWarningRequest) error {
+	bucket := fmt.Sprintf("%s-warnings", conf.Username)
+	return u.repo.DeleteWarningMessage(bucket, request)
+}
+
+// UpdateWarningProcessedState 更新警告信息处理状态
+func (u *WarningDetectUsecase) UpdateWarningProcessedState(request *v1.UpdateWarningRequest) error {
+	bucket := fmt.Sprintf("%s-warnings", conf.Username)
+	return u.repo.UpdateWarningProcessedState(bucket, request)
 }

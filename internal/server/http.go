@@ -9,6 +9,7 @@ import (
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/go-kratos/kratos/v2/transport/http"
 	h "net/http"
+	"strings"
 )
 
 // NewHTTPServer new a HTTP server.
@@ -35,9 +36,11 @@ func NewHTTPServer(c *conf.Server, cs *service.ConfigService, ws *service.Warnin
 	v1.RegisterWarningDetectHTTPServer(srv, ws)
 	v1.RegisterConfigHTTPServer(srv, cs)
 	// 额外添加处理ws连接请求的http路由
-	srv.HandleFunc("/warnings/push", func(writer h.ResponseWriter, request *h.Request) {
-		ws.ServeWebsocketConnection(writer, request)
-	})
-
+	srv.HandleFunc(
+		"/warnings/push/"+strings.ReplaceAll(conf.Username, "_", "-"),
+		func(writer h.ResponseWriter, request *h.Request) {
+			ws.ServeWebsocketConnection(writer, request)
+		},
+	)
 	return srv
 }

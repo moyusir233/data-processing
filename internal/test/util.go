@@ -21,7 +21,7 @@ import (
 
 // 提供给测试程序使用的通用初始化函数
 func generalInit(path string) (*conf.Bootstrap, error) {
-	err := os.Setenv("USERNAME", "test")
+	err := os.Setenv("USERNAME", "init_bucket")
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func saveConfig(client *data.RedisData, deviceID string, config proto.Message) e
 
 // 保存设备状态的辅助函数
 func saveState(client influxdb2.Client, org, bucket string, time time.Time,
-	deviceID string, fields map[string]float64, tags map[string]string) error {
+	deviceID string, fields map[string]interface{}, tags map[string]string) error {
 	writeAPI := client.WriteAPI(org, bucket)
 
 	point := write.NewPointWithMeasurement(deviceID).SetTime(time.UTC())

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	v1 "gitee.com/moyusir/data-processing/api/dataProcessing/v1"
+	"gitee.com/moyusir/data-processing/internal/conf"
 	"gitee.com/moyusir/data-processing/internal/data"
 	utilApi "gitee.com/moyusir/util/api/util/v1"
 	"github.com/gorilla/websocket"
@@ -100,8 +101,8 @@ func TestDataProcessingService(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		for _, bucket := range []string{"test", "test-warning_detect", "test-warnings"} {
-			clearInfluxdb(influxClient, "test", bucket, 1)
+		for _, bucket := range []string{conf.Username, conf.Username + "-warning_detect", conf.Username + "-warnings"} {
+			clearInfluxdb(influxClient, bootstrap.Data.Influxdb.Org, bucket, 1)
 		}
 		cleanup2()
 	})
@@ -162,11 +163,16 @@ func TestDataProcessingService(t *testing.T) {
 				Current:     1000,
 				Temperature: 0,
 			}
-			fields := map[string]float64{
-				"tmp": 123.0,
+			// 由于解析结果时，利用的是groupCount是依据注册信息填写的预警字段得到的，
+			// 因此上传临时的设备状态信息的字段数量也要符合注册时的预警字段数量，
+			// 否则会影响influxdb查询结果的解析
+			fields := map[string]interface{}{
+				"tmp1": 123.0,
+				"tmp2": 123.0,
+				"tmp3": 123.0,
 			}
 			err := saveState(influxClient,
-				"test", "test", state.Time.AsTime(), state.Id,
+				bootstrap.Data.Influxdb.Org, conf.Username, state.Time.AsTime(), state.Id,
 				fields, tags,
 			)
 			if err != nil {
@@ -196,23 +202,23 @@ func TestDataProcessingService(t *testing.T) {
 	})
 
 	// 3. 测试关于设备状态的注册信息的查询功能
-	t.Run("Test_GetRegisterInfo", func(t *testing.T) {
-		for i, info := range registerInfo {
-			stateRegisterInfo, err := warningDetectHTTPClient.GetDeviceStateRegisterInfo(
-				context.Background(),
-				&v1.GetDeviceStateRegisterInfoRequest{DeviceClassId: int64(i)},
-			)
-			if err != nil {
-				t.Error(err)
-				return
-			}
-
-			// 检查信息
-			if !proto.Equal(&info, stateRegisterInfo) {
-				t.Errorf("Register info query result error:%v %v", info, *stateRegisterInfo)
-			}
-		}
-	})
+	//t.Run("Test_GetRegisterInfo", func(t *testing.T) {
+	//	for i, info := range registerInfo {
+	//		stateRegisterInfo, err := warningDetectHTTPClient.GetDeviceStateRegisterInfo(
+	//			context.Background(),
+	//			&v1.GetDeviceStateRegisterInfoRequest{DeviceClassId: int64(i)},
+	//		)
+	//		if err != nil {
+	//			t.Error(err)
+	//			return
+	//		}
+	//
+	//		// 检查信息
+	//		if !proto.Equal(&info, stateRegisterInfo) {
+	//			t.Errorf("Register info query result error:%v %v", info, *stateRegisterInfo)
+	//		}
+	//	}
+	//})
 
 	// 第四个测试和第五个测试中共用的设备状态信息
 	var states []v1.DeviceState1
@@ -293,7 +299,7 @@ func TestDataProcessingService(t *testing.T) {
 
 		for i := 0; i < len(warningChannels); i++ {
 			conn, resp, err := websocket.DefaultDialer.Dial(
-				"ws://localhost:8000/warnings/push", nil)
+				"ws://localhost:8000/warnings/push/"+strings.ReplaceAll(conf.Username, "_", "-"), nil)
 			if err != nil {
 				t.Error(err)
 				buffer := bytes.NewBuffer(make([]byte, 0, 1024))
@@ -312,13 +318,13 @@ func TestDataProcessingService(t *testing.T) {
 		now := time.Now()
 		tags := map[string]string{"deviceClassID": "1"}
 		for i, s := range states {
-			fields := map[string]float64{
+			fields := map[string]interface{}{
 				"voltage":     s.Voltage,
 				"current":     s.Current,
 				"temperature": s.Temperature,
 			}
 			s.Time = timestamppb.New(now.Add(time.Duration(i+5) * time.Second))
-			err := saveState(influxClient, "test", "test",
+			err := saveState(influxClient, bootstrap.Data.Influxdb.Org, conf.Username,
 				s.Time.AsTime(), s.Id, fields, tags,
 			)
 			if err != nil {
@@ -403,4 +409,177 @@ func TestDataProcessingService(t *testing.T) {
 		}
 
 	})
+}
+
+func TestWarningDetect(t *testing.T) {
+	// 定义测试时使用的注册信息
+	registerInfo := []utilApi.DeviceStateRegisterInfo{
+		{
+			Fields: nil,
+		},
+		{
+			Fields: nil,
+		},
+		{
+			Fields: []*utilApi.DeviceStateRegisterInfo_Field{
+				{
+					Name:        "id",
+					Type:        utilApi.Type_STRING,
+					WarningRule: nil,
+				},
+				{
+					Name:        "time",
+					Type:        utilApi.Type_TIMESTAMP,
+					WarningRule: nil,
+				},
+				{
+					Name: "voltage",
+					Type: utilApi.Type_DOUBLE,
+					WarningRule: &utilApi.DeviceStateRegisterInfo_WarningRule{
+						CmpRule: &utilApi.DeviceStateRegisterInfo_CmpRule{
+							Cmp: utilApi.DeviceStateRegisterInfo_LT,
+							Arg: "1000",
+						},
+						AggregationOperation: utilApi.DeviceStateRegisterInfo_MAX,
+						Duration:             durationpb.New(2 * time.Second),
+					},
+				},
+				{
+					Name: "current",
+					Type: utilApi.Type_DOUBLE,
+					WarningRule: &utilApi.DeviceStateRegisterInfo_WarningRule{
+						CmpRule: &utilApi.DeviceStateRegisterInfo_CmpRule{
+							Cmp: utilApi.DeviceStateRegisterInfo_GT,
+							Arg: "1000",
+						},
+						AggregationOperation: utilApi.DeviceStateRegisterInfo_MIN,
+						Duration:             durationpb.New(time.Second),
+					},
+				},
+				{
+					Name: "power",
+					Type: utilApi.Type_INT64,
+					WarningRule: &utilApi.DeviceStateRegisterInfo_WarningRule{
+						CmpRule: &utilApi.DeviceStateRegisterInfo_CmpRule{
+							Cmp: utilApi.DeviceStateRegisterInfo_EQ,
+							Arg: "1000",
+						},
+						AggregationOperation: utilApi.DeviceStateRegisterInfo_SUM,
+						Duration:             durationpb.New(4 * time.Second),
+					},
+				},
+				{
+					Name: "energy",
+					Type: utilApi.Type_INT64,
+					WarningRule: &utilApi.DeviceStateRegisterInfo_WarningRule{
+						CmpRule: &utilApi.DeviceStateRegisterInfo_CmpRule{
+							Cmp: utilApi.DeviceStateRegisterInfo_GT,
+							Arg: "1000",
+						},
+						AggregationOperation: utilApi.DeviceStateRegisterInfo_AVG,
+						Duration:             durationpb.New(8 * time.Second),
+					},
+				},
+			},
+		},
+	}
+
+	// 初始化测试环境
+	bootstrap, err := generalInit("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 初始化用于写入测试用例信息的influx客户端
+	influxClient, cleanup2, err := data.NewInfluxdbData(bootstrap.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		// 休眠一分钟后再删除
+		time.Sleep(time.Minute)
+		for _, bucket := range []string{conf.Username, conf.Username + "-warning_detect", conf.Username + "-warnings"} {
+			clearInfluxdb(influxClient, bootstrap.Data.Influxdb.Org, bucket, 2)
+		}
+		cleanup2()
+	})
+
+	// 启动服务器
+	StartDataProcessingServer(t, bootstrap, registerInfo)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	wg := &sync.WaitGroup{}
+	t.Cleanup(func() {
+		cancel()
+		wg.Wait()
+	})
+
+	// 后台启动不断接收预警信息的ws协程
+	warningCount := 0
+	errChan := make(chan error, 1)
+
+	go func() {
+		wg.Add(1)
+		defer wg.Done()
+
+		conn, _, err := websocket.DefaultDialer.Dial(
+			"ws://localhost:8000/warnings/push/"+strings.ReplaceAll(conf.Username, "_", "-"), nil)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		defer conn.Close()
+
+		go func() {
+			for {
+				_, msg, err := conn.ReadMessage()
+				if err != nil {
+					errChan <- err
+					return
+				}
+				t.Log(string(msg))
+				warningCount++
+			}
+		}()
+
+		<-ctx.Done()
+		return
+	}()
+
+	state := &v1.DeviceState2{
+		Id:      "test",
+		Current: 2000,
+		Voltage: 500,
+		Power:   1000,
+		Energy:  2000,
+	}
+	fields := map[string]interface{}{
+		"voltage": state.Voltage,
+		"current": state.Current,
+		"power":   state.Power,
+		"energy":  state.Energy,
+	}
+	tags := map[string]string{
+		"deviceClassID": "2",
+	}
+
+	// 每隔8秒写入一次数据，写入4次
+	for i := 0; i < 4; i++ {
+		select {
+		case err := <-errChan:
+			t.Fatal(err)
+		default:
+			err = saveState(influxClient,
+				bootstrap.Data.Influxdb.Org, conf.Username, time.Now().UTC(),
+				state.Id, fields, tags)
+			if err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(8 * time.Second)
+		}
+	}
+
+	if warningCount != 4*len(fields) {
+		t.Fatalf("接收到的警告信息不正确，期望值：%d，实际值：%d", 4*len(fields), warningCount)
+	}
 }
