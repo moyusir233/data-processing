@@ -128,7 +128,7 @@ func saveConfig(client *data.RedisData, deviceID string, config proto.Message) e
 
 // 保存设备状态的辅助函数
 func saveState(client influxdb2.Client, org, bucket string, time time.Time,
-	deviceID string, fields map[string]float64, tags map[string]string) error {
+	deviceID string, fields map[string]interface{}, tags map[string]string) error {
 	writeAPI := client.WriteAPI(org, bucket)
 
 	point := write.NewPointWithMeasurement(deviceID).SetTime(time.UTC())

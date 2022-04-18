@@ -165,3 +165,12 @@ message DeviceState1 {
   double current = 4;
   double temperature = 5;
 }
+
+message DeviceState2 {
+  string id = 1;
+  google.protobuf.Timestamp time = 2;
+  double current = 3;
+  double voltage = 4;
+  int64 power = 5;
+  int64 energy = 6;
+}

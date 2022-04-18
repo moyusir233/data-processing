@@ -118,21 +118,23 @@ func (r *Repo) RunWarningDetectTask(config *biz.WarningDetectTaskConfig) (*domai
 			"启动influx task时发生了错误:%v", err)
 	}
 
-	// 为task添加offset
-	task.Offset = &r.influxdbClient.offset
-	updateTask, err := tasksAPI.UpdateTask(context.Background(), task)
-	if err != nil {
-		if updateTask != nil {
-			tasksAPI.DeleteTask(context.Background(), task)
+	if r.influxdbClient.offset != "0s" {
+		// 为task添加offset
+		task.Offset = &r.influxdbClient.offset
+		task, err = tasksAPI.UpdateTask(context.Background(), task)
+		if err != nil {
+			if task != nil {
+				tasksAPI.DeleteTask(context.Background(), task)
+			}
+			return nil, errors.Newf(
+				500, "Repo_State_Error",
+				"更新influx task时发生了错误:%v", err)
 		}
-		return nil, errors.Newf(
-			500, "Repo_State_Error",
-			"更新influx task时发生了错误:%v", err)
 	}
 
-	run, err := tasksAPI.RunManually(context.Background(), updateTask)
+	run, err := tasksAPI.RunManually(context.Background(), task)
 	if err != nil {
-		if updateTask != nil {
+		if task != nil {
 			tasksAPI.DeleteTask(context.Background(), task)
 		}
 		return nil, errors.Newf(

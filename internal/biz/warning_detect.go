@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -182,7 +183,7 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 	m := make(map[string]string)
 	// 查询用的option
 	// 每次查询目前最新下采样状态数据之后的所有采样数据，以避免出现数据检测的遗漏
-	newestTime := time.Now().UTC()
+	newestTime := time.Now().Add(-1 * time.Hour).UTC()
 	option := QueryOption{
 		Bucket: taskConf.TargetBucket,
 		Filter: m,
@@ -205,6 +206,7 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 			// 依据解析注册信息得到的预警规则进行预警检测
 			for tableResult.Next() {
 				record := tableResult.Record()
+
 				// 只对没有检测过的最新的记录进行检测
 				if t := record.Time(); t.After(newestTime) {
 					newestTime = t.UTC()
@@ -212,7 +214,12 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 					continue
 				}
 
-				value := record.Value().(float64)
+				value, err := strconv.ParseFloat(fmt.Sprintf("%v", record.Value()), 64)
+				if err != nil {
+					u.logger.Error(err)
+					continue
+				}
+
 				if field.Func(value) {
 					u.logger.Infof("检测到了违反预警规则的设备状态信息:%v", record.String())
 

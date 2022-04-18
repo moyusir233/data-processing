@@ -14,5 +14,5 @@ data:
     serverUrl: http://influxdb.test.svc.cluster.local:8086
     authToken: test
     org: test
-    taskOffset: 4s
+    taskOffset: 0s
   deviceStateRegisterInfo: /etc/app-configs/register_info.json
