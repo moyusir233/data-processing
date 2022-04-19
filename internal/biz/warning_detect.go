@@ -183,7 +183,7 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 	m := make(map[string]string)
 	// 查询用的option
 	// 每次查询目前最新下采样状态数据之后的所有采样数据，以避免出现数据检测的遗漏
-	newestTime := time.Now().Add(-1 * time.Hour).UTC()
+	newestTime := time.Now().UTC()
 	option := QueryOption{
 		Bucket: taskConf.TargetBucket,
 		Filter: m,
@@ -229,7 +229,7 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 						DeviceClassId:   int32(deviceClassID),
 						DeviceFieldName: field.Name,
 						WarningMessage:  fmt.Sprintf("%s %s warning", deviceID, field.Name),
-						Start:           timestamppb.New(record.Start()),
+						Start:           timestamppb.New(record.Time()),
 						End:             timestamppb.New(record.Stop()),
 					}
 				}
