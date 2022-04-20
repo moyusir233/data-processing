@@ -3,7 +3,7 @@ module gitee.com/moyusir/data-processing
 go 1.17
 
 require (
-	gitee.com/moyusir/util v1.0.6
+	gitee.com/moyusir/util v1.1.0
 	github.com/go-kratos/kratos/v2 v2.1.5
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/golang/protobuf v1.5.2
@@ -28,6 +28,9 @@ require (
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	go.uber.org/atomic v1.7.0 // indirect
+	go.uber.org/multierr v1.6.0 // indirect
+	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/net v0.0.0-20220111093109-d55c255bac03 // indirect
 	golang.org/x/sys v0.0.0-20210816183151-1e6c022a8912 // indirect
 	golang.org/x/text v0.3.7 // indirect

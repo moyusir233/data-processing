@@ -1,6 +1,7 @@
-# gitee.com/moyusir/util v1.0.6
+# gitee.com/moyusir/util v1.1.0
 ## explicit; go 1.17
 gitee.com/moyusir/util/api/util/v1
+gitee.com/moyusir/util/logger
 gitee.com/moyusir/util/parser
 # github.com/cespare/xxhash/v2 v2.1.2
 ## explicit; go 1.11
@@ -99,6 +100,20 @@ github.com/influxdata/line-protocol
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
+# go.uber.org/atomic v1.7.0
+## explicit; go 1.13
+go.uber.org/atomic
+# go.uber.org/multierr v1.6.0
+## explicit; go 1.12
+go.uber.org/multierr
+# go.uber.org/zap v1.21.0
+## explicit; go 1.13
+go.uber.org/zap
+go.uber.org/zap/buffer
+go.uber.org/zap/internal/bufferpool
+go.uber.org/zap/internal/color
+go.uber.org/zap/internal/exit
+go.uber.org/zap/zapcore
 # golang.org/x/net v0.0.0-20220111093109-d55c255bac03
 ## explicit; go 1.17
 golang.org/x/net/http/httpguts
