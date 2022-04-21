@@ -8,6 +8,7 @@ import (
 	"gitee.com/moyusir/data-processing/internal/conf"
 	"gitee.com/moyusir/data-processing/internal/data"
 	utilApi "gitee.com/moyusir/util/api/util/v1"
+	"github.com/go-kratos/kratos/v2/log"
 	"github.com/golang/protobuf/proto"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
@@ -19,15 +20,12 @@ import (
 	"time"
 )
 
-func TestRepo_Influxdb(t *testing.T) {
-	bootstrap, err := conf.LoadConfig("../../configs/config.yaml")
+func TestDataProcessingService_Influxdb(t *testing.T) {
+	bootstrap, err := conf.LoadConfig("../../configs/config.yaml", log.DefaultLogger)
 	if err != nil {
 		t.Fatal(err)
 	}
-	bootstrap.Data.Influxdb.ServerUrl = "http://localhost:8086"
-	bootstrap.Data.Influxdb.AuthToken =
-		"33124V3gfLPi2wy07KIJvPSQdIey9ogLYh6AHhtjwKJgyg1Xguy-ApjUh4VWcZUw6jCCfinxTla_uZdHxIWaEw=="
-	initBucket := "test"
+	initBucket := "init_bucket"
 
 	redisData := &data.RedisData{}
 

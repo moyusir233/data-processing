@@ -9,6 +9,7 @@ import (
 	"gitee.com/moyusir/data-processing/internal/data"
 	utilApi "gitee.com/moyusir/util/api/util/v1"
 	"github.com/gorilla/websocket"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -262,7 +263,7 @@ func TestDataProcessingService(t *testing.T) {
 					return
 				default:
 					warning := new(utilApi.Warning)
-					err := conn.ReadJSON(warning)
+					_, message, err := conn.ReadMessage()
 					// 由于从连接中读取信息会造成协程阻塞，
 					// 且可能是因为done关闭，然后关闭了ws连接而产生的错误，
 					// 因此当首次发生错误时，先continue，去判断done是否关闭
@@ -274,6 +275,12 @@ func TestDataProcessingService(t *testing.T) {
 						} else {
 							continue
 						}
+					}
+
+					err = protojson.Unmarshal(message, warning)
+					if err != nil {
+						t.Error(err)
+						return
 					}
 					warnings <- warning
 				}
