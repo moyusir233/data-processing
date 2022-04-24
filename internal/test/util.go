@@ -62,7 +62,7 @@ func newApp(logger log.Logger, hs *http.Server) *kratos.App {
 func StartDataProcessingServer(t *testing.T, bootstrap *conf.Bootstrap, registerInfo []utilApi.DeviceStateRegisterInfo) (
 	v1.ConfigHTTPClient, v1.WarningDetectHTTPClient) {
 	// 启动服务器
-	app, cleanup, err := initApp(bootstrap.Server, bootstrap.Data, registerInfo, log.NewStdLogger(os.Stdout))
+	app, cleanup, err := initApp(bootstrap.Server, bootstrap.Data, registerInfo, log.DefaultLogger)
 	if err != nil {
 		t.Fatal(err)
 	}
