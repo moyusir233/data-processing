@@ -127,7 +127,7 @@ func NewWarningDetectUsecase(repo UnionRepo, registerInfo []utilApi.DeviceStateR
 		warningDetectGroup: new(errgroup.Group),
 		warningPushGroup:   new(errgroup.Group),
 		// TODO 考虑容量
-		warningChannel:        make(chan *utilApi.Warning, 10),
+		warningChannel:        make(chan *utilApi.Warning, 100),
 		warningFanOutChannels: list.New(),
 		pool: &sync.Pool{New: func() interface{} {
 			return &warningPushNode{

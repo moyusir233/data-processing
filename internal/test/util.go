@@ -14,6 +14,7 @@ import (
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	"google.golang.org/protobuf/proto"
+	"io"
 	"os"
 	"testing"
 	"time"
@@ -62,7 +63,8 @@ func newApp(logger log.Logger, hs *http.Server) *kratos.App {
 func StartDataProcessingServer(t *testing.T, bootstrap *conf.Bootstrap, registerInfo []utilApi.DeviceStateRegisterInfo) (
 	v1.ConfigHTTPClient, v1.WarningDetectHTTPClient) {
 	// 启动服务器
-	app, cleanup, err := initApp(bootstrap.Server, bootstrap.Data, registerInfo, log.DefaultLogger)
+	app, cleanup, err := initApp(
+		bootstrap.Server, bootstrap.Data, registerInfo, log.NewStdLogger(io.Discard))
 	if err != nil {
 		t.Fatal(err)
 	}
