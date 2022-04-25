@@ -195,8 +195,10 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 		case <-u.ctx.Done():
 			return nil
 		case <-ticker.C:
-			u.logger.Debugf("于时间:%s发出了start为:%s的查询请求",
-				time.Now().UTC().Format(time.RFC3339), newestTime.Format(time.RFC3339))
+			u.logger.Debugf("于时间:%s发出了start为:%s类别号和字段名为:%d-%s的查询请求",
+				time.Now().UTC().Format(time.RFC3339), newestTime.Format(time.RFC3339),
+				deviceClassID, field.Name,
+			)
 			// 调用repo层函数进行查询
 			// TODO 考虑错误处理
 			tableResult, err := u.repo.BatchGetDeviceWarningDetectField(deviceClassID, field.Name, option)
