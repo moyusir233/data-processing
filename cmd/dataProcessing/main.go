@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	"gitee.com/moyusir/data-processing/internal/conf"
@@ -42,13 +43,14 @@ func newApp(logger log.Logger, hs *http.Server) *kratos.App {
 
 func main() {
 	flag.Parse()
-	logger := util.NewJsonZapLoggerWarpper(Name)
-	helper := log.NewHelper(logger)
 
-	bc, err := conf.LoadConfig(flagconf, logger)
+	bc, err := conf.LoadConfig(flagconf, log.DefaultLogger)
 	if err != nil {
-		helper.Fatalf("导入配置时发生了错误:%v", err)
+		panic(fmt.Sprintf("导入配置时发生了错误:%v", err))
 	}
+
+	logger := util.NewJsonZapLoggerWarpper(Name, bc.LogLevel)
+	helper := log.NewHelper(logger)
 
 	registerInfo, err := conf.LoadRegisterInfo(bc.Data.DeviceStateRegisterInfo)
 	if err != nil {
