@@ -2,9 +2,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	"gitee.com/moyusir/data-processing/internal/conf"
+	util "gitee.com/moyusir/util/logger"
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/transport/http"
@@ -13,7 +15,7 @@ import (
 // go build -ldflags "-X main.Version=x.y.z"
 var (
 	// Name is the name of the compiled software.
-	Name string = "data-processing"
+	Name = "data-processing"
 	// Version is the version of the compiled software.
 	Version string
 	// flagconf is the config flag.
@@ -41,18 +43,14 @@ func newApp(logger log.Logger, hs *http.Server) *kratos.App {
 
 func main() {
 	flag.Parse()
-	logger := log.With(log.NewStdLogger(os.Stdout),
-		"ts", log.DefaultTimestamp,
-		"caller", log.DefaultCaller,
-		"service.id", id,
-		"service.name", Name,
-	)
-	helper := log.NewHelper(logger)
 
-	bc, err := conf.LoadConfig(flagconf)
+	bc, err := conf.LoadConfig(flagconf, log.DefaultLogger)
 	if err != nil {
-		helper.Fatalf("导入配置时发生了错误:%v", err)
+		panic(fmt.Sprintf("导入配置时发生了错误:%v", err))
 	}
+
+	logger := util.NewJsonZapLoggerWarpper(Name, bc.LogLevel)
+	helper := log.NewHelper(logger)
 
 	registerInfo, err := conf.LoadRegisterInfo(bc.Data.DeviceStateRegisterInfo)
 	if err != nil {

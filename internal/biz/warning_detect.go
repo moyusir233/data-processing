@@ -127,7 +127,7 @@ func NewWarningDetectUsecase(repo UnionRepo, registerInfo []utilApi.DeviceStateR
 		warningDetectGroup: new(errgroup.Group),
 		warningPushGroup:   new(errgroup.Group),
 		// TODO 考虑容量
-		warningChannel:        make(chan *utilApi.Warning, 10),
+		warningChannel:        make(chan *utilApi.Warning, 100),
 		warningFanOutChannels: list.New(),
 		pool: &sync.Pool{New: func() interface{} {
 			return &warningPushNode{
@@ -183,7 +183,7 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 	m := make(map[string]string)
 	// 查询用的option
 	// 每次查询目前最新下采样状态数据之后的所有采样数据，以避免出现数据检测的遗漏
-	newestTime := time.Now().Add(-1 * time.Hour).UTC()
+	newestTime := time.Now().UTC()
 	option := QueryOption{
 		Bucket: taskConf.TargetBucket,
 		Filter: m,
@@ -195,6 +195,10 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 		case <-u.ctx.Done():
 			return nil
 		case <-ticker.C:
+			u.logger.Debugf("于时间:%s发出了start为:%s类别号和字段名为:%d-%s的查询请求",
+				time.Now().UTC().Format(time.RFC3339), newestTime.Format(time.RFC3339),
+				deviceClassID, field.Name,
+			)
 			// 调用repo层函数进行查询
 			// TODO 考虑错误处理
 			tableResult, err := u.repo.BatchGetDeviceWarningDetectField(deviceClassID, field.Name, option)
@@ -229,7 +233,7 @@ func (u *WarningDetectUsecase) warningDetect(deviceClassID int, field *parser.Wa
 						DeviceClassId:   int32(deviceClassID),
 						DeviceFieldName: field.Name,
 						WarningMessage:  fmt.Sprintf("%s %s warning", deviceID, field.Name),
-						Start:           timestamppb.New(record.Start()),
+						Start:           timestamppb.New(record.Time()),
 						End:             timestamppb.New(record.Stop()),
 					}
 				}

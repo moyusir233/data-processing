@@ -3,7 +3,6 @@ package test
 import (
 	"context"
 	"fmt"
-	"gitee.com/moyusir/data-processing/internal/conf"
 	"github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	"sync"
@@ -121,13 +120,4 @@ func TestClearInfluxdb(t *testing.T) {
 	for _, bucket := range []string{"test", "test-warning_detect", "test-warnings"} {
 		deleteAPI.DeleteWithName(context.Background(), "test", bucket, start, end, predicate)
 	}
-}
-
-func TestTmp(t *testing.T) {
-	bootstrap, err := conf.LoadConfig("../../configs/config.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Log(bootstrap.Data.Influxdb.TaskOffset.String())
-	t.Log(bootstrap.Data.Influxdb.TaskOffset.AsDuration().String())
 }

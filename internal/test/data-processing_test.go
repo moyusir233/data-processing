@@ -9,6 +9,7 @@ import (
 	"gitee.com/moyusir/data-processing/internal/data"
 	utilApi "gitee.com/moyusir/util/api/util/v1"
 	"github.com/gorilla/websocket"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -262,7 +263,7 @@ func TestDataProcessingService(t *testing.T) {
 					return
 				default:
 					warning := new(utilApi.Warning)
-					err := conn.ReadJSON(warning)
+					_, message, err := conn.ReadMessage()
 					// 由于从连接中读取信息会造成协程阻塞，
 					// 且可能是因为done关闭，然后关闭了ws连接而产生的错误，
 					// 因此当首次发生错误时，先continue，去判断done是否关闭
@@ -274,6 +275,12 @@ func TestDataProcessingService(t *testing.T) {
 						} else {
 							continue
 						}
+					}
+
+					err = protojson.Unmarshal(message, warning)
+					if err != nil {
+						t.Error(err)
+						return
 					}
 					warnings <- warning
 				}
@@ -507,79 +514,160 @@ func TestWarningDetect(t *testing.T) {
 	// 启动服务器
 	StartDataProcessingServer(t, bootstrap, registerInfo)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	wg := &sync.WaitGroup{}
-	t.Cleanup(func() {
-		cancel()
-		wg.Wait()
-	})
-
-	// 后台启动不断接收预警信息的ws协程
-	warningCount := 0
-	errChan := make(chan error, 1)
-
-	go func() {
-		wg.Add(1)
-		defer wg.Done()
-
-		conn, _, err := websocket.DefaultDialer.Dial(
-			"ws://localhost:8000/warnings/push/"+strings.ReplaceAll(conf.Username, "_", "-"), nil)
-		if err != nil {
-			errChan <- err
-			return
-		}
-		defer conn.Close()
-
-		go func() {
-			for {
-				_, msg, err := conn.ReadMessage()
-				if err != nil {
-					errChan <- err
-					return
-				}
-				t.Log(string(msg))
-				warningCount++
-			}
+	// 辅助函数
+	testWarningDetect := func(state *v1.DeviceState2, interval time.Duration, count int) (
+		msgCount int, err error) {
+		ctx, cancel := context.WithCancel(context.Background())
+		wg := &sync.WaitGroup{}
+		defer func() {
+			cancel()
+			wg.Wait()
 		}()
 
-		<-ctx.Done()
-		return
-	}()
+		// 后台启动不断接收预警信息的ws协程
+		msgCount = 0
+		errChan := make(chan error, 1)
 
-	state := &v1.DeviceState2{
-		Id:      "test",
-		Current: 2000,
-		Voltage: 500,
-		Power:   1000,
-		Energy:  2000,
-	}
-	fields := map[string]interface{}{
-		"voltage": state.Voltage,
-		"current": state.Current,
-		"power":   state.Power,
-		"energy":  state.Energy,
-	}
-	tags := map[string]string{
-		"deviceClassID": "2",
+		go func() {
+			wg.Add(1)
+			defer wg.Done()
+
+			conn, _, err := websocket.DefaultDialer.Dial(
+				"ws://localhost:8000/warnings/push/"+strings.ReplaceAll(conf.Username, "_", "-"), nil)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			defer conn.Close()
+
+			go func() {
+				for {
+					_, _, err := conn.ReadMessage()
+					if err != nil {
+						errChan <- err
+						return
+					}
+					msgCount++
+				}
+			}()
+
+			<-ctx.Done()
+			return
+		}()
+
+		fields := map[string]interface{}{
+			"voltage": state.Voltage,
+			"current": state.Current,
+			"power":   state.Power,
+			"energy":  state.Energy,
+		}
+		tags := map[string]string{
+			"deviceClassID": "2",
+		}
+
+		for i := 0; i < count; i++ {
+			select {
+			case err := <-errChan:
+				t.Fatal(err)
+			default:
+				err = saveState(influxClient,
+					bootstrap.Data.Influxdb.Org, conf.Username, time.Now().UTC(),
+					state.Id, fields, tags)
+				if err != nil {
+					t.Fatal(err)
+				}
+				time.Sleep(interval)
+			}
+		}
+
+		return msgCount, nil
 	}
 
-	// 每隔8秒写入一次数据，写入4次
-	for i := 0; i < 4; i++ {
-		select {
-		case err := <-errChan:
-			t.Fatal(err)
-		default:
-			err = saveState(influxClient,
-				bootstrap.Data.Influxdb.Org, conf.Username, time.Now().UTC(),
-				state.Id, fields, tags)
+	// 定义测试用例，分别对四个字段进行测试
+	testCases := []struct {
+		name     string
+		state    *v1.DeviceState2
+		interval time.Duration
+		count    int
+		expected int
+	}{
+		{
+			name: "voltage",
+			state: &v1.DeviceState2{
+				Id:      "test",
+				Voltage: 500,
+				Current: 0,
+				Power:   0,
+				Energy:  0,
+			},
+			interval: 2 * time.Second,
+			count:    30,
+			expected: 30,
+		},
+		{
+			name: "current",
+			state: &v1.DeviceState2{
+				Id:      "test",
+				Voltage: 2000,
+				Current: 2000,
+				Power:   0,
+				Energy:  0,
+			},
+			interval: time.Second,
+			count:    60,
+			expected: 60,
+		},
+		{
+			name: "power",
+			state: &v1.DeviceState2{
+				Id:      "test",
+				Voltage: 2000,
+				Current: 0,
+				Power:   1000,
+				Energy:  0,
+			},
+			interval: 4 * time.Second,
+			count:    15,
+			expected: 15,
+		},
+		{
+			name: "energy",
+			state: &v1.DeviceState2{
+				Id:      "test",
+				Voltage: 2000,
+				Current: 0,
+				Power:   0,
+				Energy:  2000,
+			},
+			interval: 8 * time.Second,
+			count:    8,
+			expected: 8,
+		},
+		{
+			name: "all",
+			state: &v1.DeviceState2{
+				Id:      "test",
+				Voltage: 500,
+				Current: 2000,
+				Power:   1000,
+				Energy:  2000,
+			},
+			interval: 8 * time.Second,
+			count:    8,
+			expected: 32,
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			warningCount, err := testWarningDetect(c.state, c.interval, c.count)
 			if err != nil {
 				t.Fatal(err)
 			}
-			time.Sleep(8 * time.Second)
-		}
-	}
 
-	if warningCount != 4*len(fields) {
-		t.Fatalf("接收到的警告信息不正确，期望值：%d，实际值：%d", 4*len(fields), warningCount)
+			if warningCount != c.expected {
+				t.Fatalf("接收到的警告信息数量不正确,expected %d, got %d", c.expected, warningCount)
+			}
+		})
 	}
 }
